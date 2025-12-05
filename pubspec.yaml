@@ -1,7 +1,7 @@
 name: daily_voca
 description: "A new Flutter project."
 
-publish_to: 'none' 
+publish_to: "none"
 
 version: 1.0.0+1
 
@@ -11,6 +11,23 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # 상태관리
+  provider: ^6.1.1
+
+  # 로컬 DB
+  sqflite: ^2.3.0
+  path_provider: ^2.1.1
+  path: ^1.8.3
+
+  # UI/UX
+  flutter_card_swiper: ^7.0.1
+  fl_chart: ^0.66.0
+
+  # 발음 듣기(TTS)
+  flutter_tts: ^4.0.2
+
+  # 유틸리티
+  intl: ^0.19.0
 
   cupertino_icons: ^1.0.8
 
@@ -19,7 +36,6 @@ dev_dependencies:
     sdk: flutter
 
   flutter_lints: ^5.0.0
-
 
 flutter:
   uses-material-design: true
