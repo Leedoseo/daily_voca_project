@@ -1,8 +1,14 @@
+// Flutter Material Design 위젯
 import 'package:flutter/material.dart';
+// 단어 모델
 import '../models/word.dart';
+// 데이터베이스 서비스
 import '../services/database_service.dart';
+// 단어 상세 화면
 import 'word_detail_screen.dart';
 
+/// 단어 목록 화면
+/// 모든 단어를 보여주고 검색할 수 있는 화면
 class WordListScreen extends StatefulWidget {
   const WordListScreen({super.key});
 
@@ -10,11 +16,21 @@ class WordListScreen extends StatefulWidget {
   State<WordListScreen> createState() => _WordListScreenState();
 }
 
+/// WordListScreen의 상태 관리 클래스
 class _WordListScreenState extends State<WordListScreen> {
+  // 데이터베이스 서비스
   final DatabaseService _dbService = DatabaseService.instance;
+
+  // 전체 단어 목록
   List<Word> _words = [];
+
+  // 검색 필터링된 단어 목록 (화면에 실제로 표시되는 목록)
   List<Word> _filteredWords = [];
+
+  // 로딩 중 여부
   bool _isLoading = true;
+
+  // 검색 입력 필드의 텍스트를 제어하는 컨트롤러
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -23,21 +39,28 @@ class _WordListScreenState extends State<WordListScreen> {
     _loadWords();
   }
 
+  /// 데이터베이스에서 모든 단어 로드
   Future<void> _loadWords() async {
     setState(() => _isLoading = true);
     final words = await _dbService.getAllWords();
     setState(() {
-      _words = words;
-      _filteredWords = words;
+      _words = words; // 전체 목록
+      _filteredWords = words; // 초기에는 필터링 안 함
       _isLoading = false;
     });
   }
 
+  /// 검색어로 단어 필터링
+  /// query: 사용자가 입력한 검색어
   void _filterWords(String query) {
     setState(() {
       if (query.isEmpty) {
+        // 검색어가 없으면 전체 목록 표시
         _filteredWords = _words;
       } else {
+        // where(): 조건에 맞는 요소만 필터링
+        // toLowerCase(): 대소문자 구분 없이 검색
+        // contains(): 문자열 포함 여부 확인
         _filteredWords = _words
             .where((word) =>
                 word.word.toLowerCase().contains(query.toLowerCase()) ||
