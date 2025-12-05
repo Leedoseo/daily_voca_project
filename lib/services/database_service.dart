@@ -1,37 +1,65 @@
+// SQLite 데이터베이스 패키지
 import 'package:sqflite/sqflite.dart';
+// 파일 경로 조작을 위한 패키지 (join 함수 사용)
 import 'package:path/path.dart';
+// 단어 모델
 import '../models/word.dart';
+// 학습 기록 모델
 import '../models/study_record.dart';
 
+/// 데이터베이스 서비스 클래스
+/// SQLite 데이터베이스의 모든 작업을 관리
 class DatabaseService {
+  // 싱글톤 패턴: 앱 전체에서 하나의 인스턴스만 사용
+  // static: 클래스 레벨 변수 (객체 생성 없이 접근 가능)
+  // final: 한 번 할당되면 변경 불가
   static final DatabaseService instance = DatabaseService._init();
+
+  // 데이터베이스 객체를 저장하는 변수
+  // ?: nullable 타입 (null일 수 있음)
   static Database? _database;
 
+  // private 생성자 (_로 시작하면 private)
+  // 외부에서 new DatabaseService() 불가능 -> 싱글톤 보장
   DatabaseService._init();
 
+  /// 데이터베이스 인스턴스를 반환하는 getter
+  /// 처음 호출 시 데이터베이스 생성, 이후에는 기존 인스턴스 반환
   Future<Database> get database async {
-    if (_database != null) return _database!;
+    // 이미 데이터베이스가 있으면 반환
+    if (_database != null) return _database!; // !: null이 아님을 확신
+    // 없으면 초기화
     _database = await _initDB('daily_voca.db');
     return _database!;
   }
 
+  /// 데이터베이스 파일을 초기화하고 열기
   Future<Database> _initDB(String filePath) async {
+    // 데이터베이스를 저장할 디렉토리 경로 가져오기
+    // iOS: Library/Application Support/, Android: /data/data/<package>/databases/
     final dbPath = await getDatabasesPath();
+
+    // 디렉토리 경로 + 파일명 결합
+    // 예: /data/data/com.example.app/databases/daily_voca.db
     final path = join(dbPath, filePath);
 
+    // 데이터베이스 열기 (없으면 생성)
     return await openDatabase(
       path,
-      version: 1,
-      onCreate: _createDB,
+      version: 1, // 데이터베이스 버전 (스키마 변경 시 증가)
+      onCreate: _createDB, // 처음 생성될 때 호출될 함수
     );
   }
 
+  /// 데이터베이스 테이블 생성
+  /// 처음 데이터베이스가 만들어질 때 한 번만 실행됨
   Future<void> _createDB(Database db, int version) async {
-    const idType = 'INTEGER PRIMARY KEY AUTOINCREMENT';
-    const textType = 'TEXT NOT NULL';
-    const intType = 'INTEGER NOT NULL';
+    // SQL 데이터 타입 정의
+    const idType = 'INTEGER PRIMARY KEY AUTOINCREMENT'; // 자동 증가 ID
+    const textType = 'TEXT NOT NULL'; // 필수 텍스트
+    const intType = 'INTEGER NOT NULL'; // 필수 정수
 
-    // words 테이블 생성
+    // words 테이블 생성: 단어 정보 저장
     await db.execute('''
       CREATE TABLE words (
         id $idType,
@@ -41,7 +69,7 @@ class DatabaseService {
       )
     ''');
 
-    // study_records 테이블 생성
+    // study_records 테이블 생성: 학습 기록 저장
     await db.execute('''
       CREATE TABLE study_records (
         id $idType,
@@ -53,40 +81,61 @@ class DatabaseService {
     ''');
   }
 
-  // Words CRUD
+  // ==================== Words CRUD ====================
+  // CRUD: Create(생성), Read(읽기), Update(수정), Delete(삭제)
+
+  /// 단어 추가
+  /// 반환값: 삽입된 행의 ID
   Future<int> insertWord(Word word) async {
     final db = await database;
+    // word.toMap(): Word 객체를 Map으로 변환 (SQL INSERT에 필요)
     return await db.insert('words', word.toMap());
   }
 
+  /// 모든 단어 조회
+  /// 반환값: Word 객체 리스트
   Future<List<Word>> getAllWords() async {
     final db = await database;
+    // SELECT * FROM words
     final result = await db.query('words');
+    // Map 리스트를 Word 객체 리스트로 변환
+    // map(): 각 요소를 변환, toList(): 결과를 List로
     return result.map((map) => Word.fromMap(map)).toList();
   }
 
+  /// 특정 ID의 단어 조회
+  /// 반환값: Word 객체 또는 null (없으면)
   Future<Word?> getWord(int id) async {
     final db = await database;
+    // SELECT * FROM words WHERE id = ?
+    // where: 조건, whereArgs: ? 부분에 들어갈 값 (SQL Injection 방지)
     final maps = await db.query(
       'words',
       where: 'id = ?',
       whereArgs: [id],
     );
 
+    // 결과가 있으면 첫 번째 행을 Word 객체로 변환
     if (maps.isNotEmpty) {
       return Word.fromMap(maps.first);
     }
-    return null;
+    return null; // 결과 없음
   }
 
-  // Study Records CRUD
+  // ==================== Study Records CRUD ====================
+
+  /// 학습 기록 추가
+  /// 반환값: 삽입된 행의 ID
   Future<int> insertStudyRecord(StudyRecord record) async {
     final db = await database;
     return await db.insert('study_records', record.toMap());
   }
 
+  /// 특정 날짜의 학습 기록 조회
+  /// 예: '2024-12-05'
   Future<List<StudyRecord>> getStudyRecordsByDate(String date) async {
     final db = await database;
+    // SELECT * FROM study_records WHERE date = ?
     final result = await db.query(
       'study_records',
       where: 'date = ?',
@@ -95,40 +144,58 @@ class DatabaseService {
     return result.map((map) => StudyRecord.fromMap(map)).toList();
   }
 
+  /// 모든 학습 기록 조회
   Future<List<StudyRecord>> getAllStudyRecords() async {
     final db = await database;
     final result = await db.query('study_records');
     return result.map((map) => StudyRecord.fromMap(map)).toList();
   }
 
-  // 유틸리티
+  // ==================== 유틸리티 ====================
+
+  /// 모든 단어 삭제 (테스트용)
   Future<void> deleteAllWords() async {
     final db = await database;
+    // DELETE FROM words
     await db.delete('words');
   }
 
+  /// 모든 학습 기록 삭제 (테스트용)
   Future<void> deleteAllStudyRecords() async {
     final db = await database;
     await db.delete('study_records');
   }
 
+  /// 단어 개수 조회
+  /// 반환값: 저장된 단어의 개수
   Future<int> getWordCount() async {
     final db = await database;
+    // SQL 직접 실행: SELECT COUNT(*) as count FROM words
     final result = await db.rawQuery('SELECT COUNT(*) as count FROM words');
+    // 첫 번째 정수 값 추출, null이면 0 반환
+    // ??: null이면 오른쪽 값 사용 (null 병합 연산자)
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
+  /// 여러 단어를 한 번에 삽입 (초기 데이터용)
+  /// Batch: 여러 작업을 모아서 한 번에 실행 (성능 향상)
   Future<void> initializeWithWords(List<Word> words) async {
     final db = await database;
+    // 배치 작업 시작
     final batch = db.batch();
 
+    // 모든 단어를 배치에 추가
     for (var word in words) {
       batch.insert('words', word.toMap());
     }
 
+    // 배치 실행 (모든 INSERT를 한 번에 수행)
+    // noResult: 결과 반환하지 않음 (더 빠름)
     await batch.commit(noResult: true);
   }
 
+  /// 데이터베이스 연결 종료
+  /// 앱 종료 시 호출
   Future<void> close() async {
     final db = _database;
     if (db != null) {
