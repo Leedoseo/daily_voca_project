@@ -6,6 +6,10 @@ import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import '../models/word.dart';
 // 데이터베이스 서비스
 import '../services/database_service.dart';
+// 날짜 포맷팅 패키지
+import 'package:intl/intl.dart';
+// 학습 기록 모델
+import '../models/study_record.dart';
 
 /// 플래시카드 학습 화면
 /// StatefulWidget: 상태가 변하는 위젯 (단어 목록, 현재 인덱스 등이 변함)
@@ -62,7 +66,12 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
   /// currentIndex: 현재 카드의 인덱스 (null이면 마지막 카드)
   /// direction: 스와이프 방향 (left, right, up, down)
   /// 반환값: true면 스와이프 허용, false면 취소
-  bool _onSwipe(int previousIndex, int? currentIndex, CardSwiperDirection direction) {
+  bool _onSwipe(
+    int previousIndex,
+    int? currentIndex,
+    CardSwiperDirection direction,
+  ) {
+    _saveStudyRecord(previousIndex, direction);
     // 현재 인덱스 업데이트
     setState(() {
       if (currentIndex != null) {
@@ -81,6 +90,22 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
     return true; // 스와이프 허용
   }
 
+  // 학습 기록을 DB에 저장하는 메서드
+  /// 학습 기록을 DB에 저장
+  Future<void> _saveStudyRecord(
+    int wordIndex,
+    CardSwiperDirection direction,
+  ) async {
+    final word = _words[wordIndex];
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final result =
+        direction == CardSwiperDirection.right; // 오른쪽 = 알고있음, 왼쪽 = 모름
+
+    final record = StudyRecord(date: today, wordId: word.id!, result: result);
+
+    await _dbService.insertStudyRecord(record);
+  }
+
   /// 모든 카드 학습 완료 시 표시되는 다이얼로그
   void _showCompletionDialog() {
     // showDialog: 팝업 다이얼로그 표시
@@ -94,8 +119,8 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
           TextButton(
             onPressed: () {
               // pop() 두 번 호출: 다이얼로그 닫기 + 학습 화면 닫기
-              Navigator.of(context).pop();  // 다이얼로그 닫기
-              Navigator.of(context).pop();  // 이전 화면으로 돌아가기
+              Navigator.of(context).pop(); // 다이얼로그 닫기
+              Navigator.of(context).pop(); // 이전 화면으로 돌아가기
             },
             child: const Text('확인'),
           ),
@@ -109,18 +134,14 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
   Widget build(BuildContext context) {
     // 로딩 중일 때 로딩 인디케이터 표시
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     // 단어 목록이 비어있을 때
     if (_words.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text('학습하기')),
-        body: const Center(
-          child: Text('학습할 단어가 없습니다'),
-        ),
+        body: const Center(child: Text('학습할 단어가 없습니다')),
       );
     }
 
@@ -161,15 +182,16 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
               // CardSwiper: 카드 스와이프 위젯
               child: CardSwiper(
                 controller: _cardController,
-                cardsCount: _words.length,  // 총 카드 개수
-                numberOfCardsDisplayed: 2,  // 동시에 표시할 카드 개수
-                onSwipe: _onSwipe,          // 스와이프 콜백
+                cardsCount: _words.length, // 총 카드 개수
+                numberOfCardsDisplayed: 2, // 동시에 표시할 카드 개수
+                onSwipe: _onSwipe, // 스와이프 콜백
                 // cardBuilder: 각 카드를 그리는 함수
                 // index: 카드 인덱스
                 // percentThresholdX, percentThresholdY: 스와이프 진행률 (사용 안 함)
-                cardBuilder: (context, index, percentThresholdX, percentThresholdY) {
-                  return FlashcardWidget(word: _words[index]);
-                },
+                cardBuilder:
+                    (context, index, percentThresholdX, percentThresholdY) {
+                      return FlashcardWidget(word: _words[index]);
+                    },
               ),
             ),
           ),
@@ -190,8 +212,8 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
                   icon: const Icon(Icons.close, size: 32),
                   label: const Text('모름'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.shade400,   // 빨간색 배경
-                    foregroundColor: Colors.white,          // 흰색 텍스트
+                    backgroundColor: Colors.red.shade400, // 빨간색 배경
+                    foregroundColor: Colors.white, // 흰색 텍스트
                     padding: const EdgeInsets.symmetric(
                       horizontal: 32,
                       vertical: 16,
@@ -207,8 +229,8 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
                   icon: const Icon(Icons.check, size: 32),
                   label: const Text('알고있음'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade400,  // 초록색 배경
-                    foregroundColor: Colors.white,           // 흰색 텍스트
+                    backgroundColor: Colors.green.shade400, // 초록색 배경
+                    foregroundColor: Colors.white, // 흰색 텍스트
                     padding: const EdgeInsets.symmetric(
                       horizontal: 32,
                       vertical: 16,
@@ -262,16 +284,14 @@ class _FlashcardWidgetState extends State<FlashcardWidget> {
       },
       child: Card(
         elevation: 8, // 그림자 깊이
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             // LinearGradient: 선형 그라데이션 배경
             gradient: LinearGradient(
-              begin: Alignment.topLeft,    // 왼쪽 위에서 시작
-              end: Alignment.bottomRight,   // 오른쪽 아래로 끝
+              begin: Alignment.topLeft, // 왼쪽 위에서 시작
+              end: Alignment.bottomRight, // 오른쪽 아래로 끝
               // 삼항 연산자로 앞/뒷면에 따라 색상 변경
               colors: _showAnswer
                   ? [Colors.blue.shade300, Colors.blue.shade600]
@@ -338,10 +358,7 @@ class _FlashcardWidgetState extends State<FlashcardWidget> {
                     const SizedBox(height: 16),
                     const Text(
                       '탭하여 단어 보기',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.white70,
-                      ),
+                      style: TextStyle(fontSize: 16, color: Colors.white70),
                     ),
                   ],
                 ],
