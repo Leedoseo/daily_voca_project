@@ -267,14 +267,19 @@ class _WordListScreenState extends State<WordListScreen> {
                               const Icon(Icons.arrow_forward_ios, size: 16),
                             ],
                           ),
-                          onTap: () {
-                            Navigator.push(
+                          onTap: () async {
+                            // 상세 화면으로 이동
+                            final result = await Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (context) =>
                                     WordDetailScreen(word: word),
                               ),
                             );
+                            // 수정 또는 삭제되었으면 목록 새로고침
+                            if (result == true) {
+                              _loadWords();
+                            }
                           },
                         ),
                       ),
