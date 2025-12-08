@@ -116,6 +116,14 @@ class DatabaseService {
     return null; // 결과 없음
   }
 
+  /// 단어 수정
+  Future<int> updateWord(Word word) async {
+    final db = await database;
+    // UPDATE words SET ... WHERE id = ?
+    return await db.update('words', word.toMap(),
+        where: 'id = ?', whereArgs: [word.id]);
+  }
+
   /// 특정 단어 삭제
   Future<int> deleteWord(int id) async {
     final db = await database;
