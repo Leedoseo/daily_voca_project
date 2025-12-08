@@ -177,8 +177,6 @@ class _EditWordScreenState extends State<EditWordScreen> {
               label: Text(_isSaving ? '수정 중...' : '수정하기'),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
               ),
             ),
           ],
