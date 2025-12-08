@@ -68,6 +68,32 @@ class StudyScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
+            // 복습 시작 버튼 (주황색 버튼) - 새로 추가
+            ElevatedButton.icon(
+              onPressed: () {
+                // 복습 모드로 플래시카드 학습 화면 열기
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const FlashcardStudyScreen(
+                      isReviewMode: true, // 복습 모드 활성화
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.refresh, size: 32),
+              label: const Text('틀린 단어 복습', style: TextStyle(fontSize: 18)),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 48,
+                  vertical: 20,
+                ),
+                backgroundColor: Colors.orange,  // 주황색 배경
+                foregroundColor: Colors.white,   // 흰색 텍스트
+              ),
+            ),
+            const SizedBox(height: 16),
+
             // 단어 목록 버튼 (테두리만 있는 버튼)
             OutlinedButton.icon(
               onPressed: () {

@@ -81,9 +81,7 @@ class DatabaseService {
     ''');
   }
 
-  // ==================== Words CRUD ====================
-  // CRUD: Create(생성), Read(읽기), Update(수정), Delete(삭제)
-
+  /// Words CRUD
   /// 단어 추가
   /// 반환값: 삽입된 행의 ID
   Future<int> insertWord(Word word) async {
@@ -109,11 +107,7 @@ class DatabaseService {
     final db = await database;
     // SELECT * FROM words WHERE id = ?
     // where: 조건, whereArgs: ? 부분에 들어갈 값 (SQL Injection 방지)
-    final maps = await db.query(
-      'words',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    final maps = await db.query('words', where: 'id = ?', whereArgs: [id]);
 
     // 결과가 있으면 첫 번째 행을 Word 객체로 변환
     if (maps.isNotEmpty) {
@@ -122,8 +116,26 @@ class DatabaseService {
     return null; // 결과 없음
   }
 
-  // ==================== Study Records CRUD ====================
+  /// 틀린 단어 목록 조회 (복습용)
+  /// result = 0 (모름)인 단어들을 중복 없이 반환
+  Future<List<Word>> getIncorrectWords() async {
+    final db = await database;
+    // SQL JOIN 쿼리 : study_records 테이블과 words 테이블을 조인
+    // DISTINCT: 중복 제거
+    // WHERE result = 0: 틀린 단어만!
+    final result = await db.rawQuery('''
+      SELECT DISTINCT w.*
+      FROM words w
+      INNER JOIN study_records sr ON w.id = sr.word_id
+      WHERE sr.result = 0
+      ORDER BY sr.date DESC
+    ''');
 
+    // Map 리스트를 Word 객체 리스트로 변환
+    return result.map((map) => Word.fromMap(map)).toList();
+  }
+
+  /// Study Records CRUD
   /// 학습 기록 추가
   /// 반환값: 삽입된 행의 ID
   Future<int> insertStudyRecord(StudyRecord record) async {
@@ -151,8 +163,7 @@ class DatabaseService {
     return result.map((map) => StudyRecord.fromMap(map)).toList();
   }
 
-  // ==================== 유틸리티 ====================
-
+  // 유틸리티 
   /// 모든 단어 삭제 (테스트용)
   Future<void> deleteAllWords() async {
     final db = await database;
