@@ -14,7 +14,10 @@ import '../models/study_record.dart';
 /// 플래시카드 학습 화면
 /// StatefulWidget: 상태가 변하는 위젯 (단어 목록, 현재 인덱스 등이 변함)
 class FlashcardStudyScreen extends StatefulWidget {
-  const FlashcardStudyScreen({super.key});
+  // 복습 모드 여부 (true: 틀린 단어만, false: 전체 단어)
+  final bool isReviewMode;
+
+  const FlashcardStudyScreen({super.key, this.isReviewMode = false});
 
   @override
   // State 객체 생성
@@ -51,8 +54,10 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
     // 로딩 상태 시작
     setState(() => _isLoading = true);
 
-    // 데이터베이스에서 모든 단어 조회 (비동기)
-    final words = await _dbService.getAllWords();
+    // 복습 모드면 틀린 단어만, 아니면 전체 단어 조회
+    final words = widget.isReviewMode
+        ? await _dbService.getIncorrectWords()
+        : await _dbService.getAllWords();
 
     // 화면 업데이트 (setState 호출 시 build 메서드가 다시 실행됨)
     setState(() {
@@ -90,7 +95,6 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
     return true; // 스와이프 허용
   }
 
-  // 학습 기록을 DB에 저장하는 메서드
   /// 학습 기록을 DB에 저장
   Future<void> _saveStudyRecord(
     int wordIndex,
@@ -112,9 +116,9 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('학습 완료!'),
+        title: Text(widget.isReviewMode ? '복습 완료!' : '학습 완료!'),
         // 문자열 보간: ${} 안에 변수나 표현식 삽입
-        content: Text('${_words.length}개의 단어 학습을 완료했습니다.'),
+        content: Text('${_words.length}개의 단어 ${widget.isReviewMode ? '복습을' : '학습을'} 완료했습니다.'),
         actions: [
           TextButton(
             onPressed: () {
@@ -140,15 +144,23 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
     // 단어 목록이 비어있을 때
     if (_words.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('학습하기')),
-        body: const Center(child: Text('학습할 단어가 없습니다')),
+        appBar: AppBar(
+          title: Text(widget.isReviewMode ? '복습하기' : '학습하기'),
+        ),
+        body: Center(
+          child: Text(
+            widget.isReviewMode ? '복습할 단어가 없습니다.\n먼저 학습을 진행해주세요!' : '학습할 단어가 없습니다',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 16),
+          ),
+        ),
       );
     }
 
     // 정상적으로 단어가 있을 때 플래시카드 화면 표시
     return Scaffold(
       appBar: AppBar(
-        title: const Text('플래시카드 학습'),
+        title: Text(widget.isReviewMode ? '복습 학습' : '플래시카드 학습'),
         // AppBar 오른쪽 영역에 위젯 배치
         actions: [
           Center(
@@ -173,6 +185,10 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
             // value: 0.0 ~ 1.0 사이의 값 (현재 진행률)
             value: (_currentIndex + 1) / _words.length,
             minHeight: 6,
+            // 복습 모드일 때는 주황색 진행률 바
+            valueColor: AlwaysStoppedAnimation<Color>(
+              widget.isReviewMode ? Colors.orange : Colors.blue,
+            ),
           ),
 
           // Expanded: 남은 공간을 모두 차지
@@ -190,8 +206,8 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
                 // percentThresholdX, percentThresholdY: 스와이프 진행률 (사용 안 함)
                 cardBuilder:
                     (context, index, percentThresholdX, percentThresholdY) {
-                      return FlashcardWidget(word: _words[index]);
-                    },
+                  return FlashcardWidget(word: _words[index]);
+                },
               ),
             ),
           ),
