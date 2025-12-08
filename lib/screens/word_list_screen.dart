@@ -161,7 +161,6 @@ class _WordListScreenState extends State<WordListScreen> {
             _loadWords();
           }
         },
-        backgroundColor: Colors.blue,
         child: const Icon(Icons.add),
       ),
       body: _isLoading

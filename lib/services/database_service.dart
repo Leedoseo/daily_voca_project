@@ -85,20 +85,28 @@ class DatabaseService {
   /// 단어 추가
   /// 반환값: 삽입된 행의 ID
   Future<int> insertWord(Word word) async {
-    final db = await database;
-    // word.toMap(): Word 객체를 Map으로 변환 (SQL INSERT에 필요)
-    return await db.insert('words', word.toMap());
+    try {
+      final db = await database;
+      // word.toMap(): Word 객체를 Map으로 변환 (SQL INSERT에 필요)
+      return await db.insert('words', word.toMap());
+    } catch (e) {
+      throw Exception('단어 추가 실패: $e');
+    }
   }
 
   /// 모든 단어 조회
   /// 반환값: Word 객체 리스트
   Future<List<Word>> getAllWords() async {
-    final db = await database;
-    // SELECT * FROM words
-    final result = await db.query('words');
-    // Map 리스트를 Word 객체 리스트로 변환
-    // map(): 각 요소를 변환, toList(): 결과를 List로
-    return result.map((map) => Word.fromMap(map)).toList();
+    try {
+      final db = await database;
+      // SELECT * FROM words
+      final result = await db.query('words');
+      // Map 리스트를 Word 객체 리스트로 변환
+      // map(): 각 요소를 변환, toList(): 결과를 List로
+      return result.map((map) => Word.fromMap(map)).toList();
+    } catch (e) {
+      throw Exception('단어 목록 조회 실패: $e');
+    }
   }
 
   /// 특정 ID의 단어 조회
@@ -118,64 +126,88 @@ class DatabaseService {
 
   /// 단어 수정
   Future<int> updateWord(Word word) async {
-    final db = await database;
-    // UPDATE words SET ... WHERE id = ?
-    return await db.update('words', word.toMap(),
-        where: 'id = ?', whereArgs: [word.id]);
+    try {
+      final db = await database;
+      // UPDATE words SET ... WHERE id = ?
+      return await db.update('words', word.toMap(),
+          where: 'id = ?', whereArgs: [word.id]);
+    } catch (e) {
+      throw Exception('단어 수정 실패: $e');
+    }
   }
 
   /// 특정 단어 삭제
   Future<int> deleteWord(int id) async {
-    final db = await database;
-    // DELETE FROM words WHERE id = ?
-    return await db.delete('words', where: 'id = ?', whereArgs: [id]);
+    try {
+      final db = await database;
+      // DELETE FROM words WHERE id = ?
+      return await db.delete('words', where: 'id = ?', whereArgs: [id]);
+    } catch (e) {
+      throw Exception('단어 삭제 실패: $e');
+    }
   }
 
   /// 틀린 단어 목록 조회 (복습용)
   /// result = 0 (모름)인 단어들을 중복 없이 반환
   Future<List<Word>> getIncorrectWords() async {
-    final db = await database;
-    // SQL JOIN 쿼리 : study_records 테이블과 words 테이블을 조인
-    // DISTINCT: 중복 제거
-    // WHERE result = 0: 틀린 단어만!
-    final result = await db.rawQuery('''
-      SELECT DISTINCT w.*
-      FROM words w
-      INNER JOIN study_records sr ON w.id = sr.word_id
-      WHERE sr.result = 0
-      ORDER BY sr.date DESC
-    ''');
+    try {
+      final db = await database;
+      // SQL JOIN 쿼리 : study_records 테이블과 words 테이블을 조인
+      // DISTINCT: 중복 제거
+      // WHERE result = 0: 틀린 단어만!
+      final result = await db.rawQuery('''
+        SELECT DISTINCT w.*
+        FROM words w
+        INNER JOIN study_records sr ON w.id = sr.word_id
+        WHERE sr.result = 0
+        ORDER BY sr.date DESC
+      ''');
 
-    // Map 리스트를 Word 객체 리스트로 변환
-    return result.map((map) => Word.fromMap(map)).toList();
+      // Map 리스트를 Word 객체 리스트로 변환
+      return result.map((map) => Word.fromMap(map)).toList();
+    } catch (e) {
+      throw Exception('복습 단어 조회 실패: $e');
+    }
   }
 
   /// Study Records CRUD
   /// 학습 기록 추가
   /// 반환값: 삽입된 행의 ID
   Future<int> insertStudyRecord(StudyRecord record) async {
-    final db = await database;
-    return await db.insert('study_records', record.toMap());
+    try {
+      final db = await database;
+      return await db.insert('study_records', record.toMap());
+    } catch (e) {
+      throw Exception('학습 기록 추가 실패: $e');
+    }
   }
 
   /// 특정 날짜의 학습 기록 조회
   /// 예: '2024-12-05'
   Future<List<StudyRecord>> getStudyRecordsByDate(String date) async {
-    final db = await database;
-    // SELECT * FROM study_records WHERE date = ?
-    final result = await db.query(
-      'study_records',
-      where: 'date = ?',
-      whereArgs: [date],
-    );
-    return result.map((map) => StudyRecord.fromMap(map)).toList();
+    try {
+      final db = await database;
+      // SELECT * FROM study_records WHERE date = ?
+      final result = await db.query(
+        'study_records',
+        where: 'date = ?',
+        whereArgs: [date],
+      );
+      return result.map((map) => StudyRecord.fromMap(map)).toList();
+    } catch (e) {
+      throw Exception('학습 기록 조회 실패: $e');
+    }
   }
 
   /// 모든 학습 기록 조회
   Future<List<StudyRecord>> getAllStudyRecords() async {
-    final db = await database;
-    final result = await db.query('study_records');
-    return result.map((map) => StudyRecord.fromMap(map)).toList();
+    try {
+      final db = await database;
+      final result = await db.query('study_records');
+      return result.map((map) => StudyRecord.fromMap(map)).toList();
+    } catch (e) {
+      throw Exception('학습 기록 조회 실패: $e');
+    }
   }
 
   // 유틸리티

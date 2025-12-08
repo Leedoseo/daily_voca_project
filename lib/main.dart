@@ -52,6 +52,27 @@ class MyApp extends StatelessWidget {
         // 앱 전체의 색상 테마 설정
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true, // Material Design 3 사용
+        // AppBar 테마 설정
+        appBarTheme: const AppBarTheme(
+          centerTitle: false,
+          elevation: 0,
+        ),
+        // ElevatedButton 테마 설정
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        // Card 테마 설정
+        cardTheme: CardThemeData(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
       ),
       home: const MainScreen(), // 앱이 시작될 때 보여줄 첫 화면
     );

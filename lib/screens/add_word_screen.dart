@@ -164,8 +164,6 @@ class _AddWordScreenState extends State<AddWordScreen> {
               label: Text(_isSaving ? '저장중...' : '저장하기'),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
               ),
             ),
           ],
