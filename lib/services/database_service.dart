@@ -116,6 +116,13 @@ class DatabaseService {
     return null; // 결과 없음
   }
 
+  /// 특정 단어 삭제
+  Future<int> deleteWord(int id) async {
+    final db = await database;
+    // DELETE FROM words WHERE id = ?
+    return await db.delete('words', where: 'id = ?', whereArgs: [id]);
+  }
+
   /// 틀린 단어 목록 조회 (복습용)
   /// result = 0 (모름)인 단어들을 중복 없이 반환
   Future<List<Word>> getIncorrectWords() async {
@@ -163,7 +170,7 @@ class DatabaseService {
     return result.map((map) => StudyRecord.fromMap(map)).toList();
   }
 
-  // 유틸리티 
+  // 유틸리티
   /// 모든 단어 삭제 (테스트용)
   Future<void> deleteAllWords() async {
     final db = await database;

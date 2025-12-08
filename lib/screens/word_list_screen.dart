@@ -6,6 +6,8 @@ import '../models/word.dart';
 import '../services/database_service.dart';
 // 단어 상세 화면
 import 'word_detail_screen.dart';
+// 단어 추가 화면 추가
+import 'add_word_screen.dart';
 
 /// 단어 목록 화면
 /// 모든 단어를 보여주고 검색할 수 있는 화면
@@ -70,6 +72,54 @@ class _WordListScreenState extends State<WordListScreen> {
     });
   }
 
+  /// 단어 삭제 처리 (새로 추가)
+  Future<void> _deleteWord(Word word) async {
+    // 삭제 확인 다이얼로그 표시
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('단어 삭제'),
+        content: Text('\'${word.word}\'를 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('삭제', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    // 사용자가 삭제 확인한 경우
+    if (confirmed == true) {
+      try {
+        await _dbService.deleteWord(word.id!);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('단어가 삭제되었습니다'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          // 목록 새로고침
+          _loadWords();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('삭제 실패: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -96,6 +146,24 @@ class _WordListScreenState extends State<WordListScreen> {
           ),
         ),
       ),
+      // FloatingActionButton 추가
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          // 단어 추가 화면으로 이동
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AddWordScreen(),
+            ),
+          );
+          // 단어가 추가되었으면 목록 새로고침
+          if (result == true) {
+            _loadWords();
+          }
+        },
+        backgroundColor: Colors.blue,
+        child: const Icon(Icons.add),
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _filteredWords.isEmpty
@@ -114,27 +182,101 @@ class _WordListScreenState extends State<WordListScreen> {
                         horizontal: 12,
                         vertical: 6,
                       ),
-                      child: ListTile(
-                        title: Text(
-                          word.word,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                      // Dismissible로 감싸서 스와이프 삭제 기능 추가
+                      child: Dismissible(
+                        key: Key(word.id.toString()),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 20),
+                          color: Colors.red,
+                          child: const Icon(
+                            Icons.delete,
+                            color: Colors.white,
+                            size: 32,
                           ),
                         ),
-                        subtitle: Text(
-                          word.meaning,
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => WordDetailScreen(word: word),
+                        confirmDismiss: (direction) async {
+                          // 스와이프 시 삭제 확인 다이얼로그 표시
+                          return await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('단어 삭제'),
+                              content: Text('\'${word.word}\'를 삭제하시겠습니까?'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(context).pop(false),
+                                  child: const Text('취소'),
+                                ),
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(context).pop(true),
+                                  child: const Text('삭제',
+                                      style: TextStyle(color: Colors.red)),
+                                ),
+                              ],
                             ),
                           );
                         },
+                        onDismissed: (direction) async {
+                          // 삭제 실행
+                          try {
+                            await _dbService.deleteWord(word.id!);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('단어가 삭제되었습니다'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                              _loadWords();
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('삭제 실패: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                              _loadWords();
+                            }
+                          }
+                        },
+                        child: ListTile(
+                          title: Text(
+                            word.word,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          subtitle: Text(
+                            word.meaning,
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // 삭제 버튼 추가
+                              IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () => _deleteWord(word),
+                              ),
+                              const Icon(Icons.arrow_forward_ios, size: 16),
+                            ],
+                          ),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    WordDetailScreen(word: word),
+                              ),
+                            );
+                          },
+                        ),
                       ),
                     );
                   },
