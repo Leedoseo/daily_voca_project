@@ -6,6 +6,8 @@ import 'screens/main_screen.dart';
 import 'services/database_service.dart';
 // 초기 단어 데이터 (50개의 토익 필수 단어)
 import 'utils/initial_data.dart';
+// 한국어 locale 초기화를 위한 패키지
+import 'package:intl/date_symbol_data_local.dart';
 
 // 앱의 시작점 (진입점)
 // async: 비동기 함수 - await를 사용할 수 있음
@@ -13,6 +15,9 @@ void main() async {
   // Flutter 엔진을 초기화 (비동기 작업 전에 필수)
   // 데이터베이스 같은 네이티브 기능을 사용하기 전에 반드시 호출해야 함
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 한국어 locale 데이터 초기화 (DateFormat에서 'ko_KR' 사용하기 위해 필수)
+  await initializeDateFormatting('ko_KR', null);
 
   // 데이터베이스 서비스의 싱글톤 인스턴스 가져오기
   // 싱글톤: 앱 전체에서 하나의 인스턴스만 사용
