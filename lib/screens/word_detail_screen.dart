@@ -4,6 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 // 단어 모델
 import '../models/word.dart';
+// DB 서비스
+import '../services/database_service.dart';
+// 단어 수정 화면
+import 'edit_word_screen.dart';
 
 /// 단어 상세 화면
 /// 단어의 상세 정보와 발음 듣기 기능을 제공
@@ -21,6 +25,9 @@ class WordDetailScreen extends StatefulWidget {
 class _WordDetailScreenState extends State<WordDetailScreen> {
   // TTS 엔진 인스턴스
   final FlutterTts _flutterTts = FlutterTts();
+
+  // DB 서비스
+  final DatabaseService _dbService = DatabaseService.instance;
 
   // 현재 발음 재생 중인지 여부
   bool _isSpeaking = false;
@@ -73,6 +80,54 @@ class _WordDetailScreenState extends State<WordDetailScreen> {
     }
   }
 
+  /// 단어 삭제 처리
+  Future<void> _deleteWord() async {
+    // 삭제 확인 다이얼로그 표시
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('단어 삭제'),
+        content: Text('\'${widget.word.word}\'를 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('삭제', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    // 사용자가 삭제 확인한 경우
+    if (confirmed == true) {
+      try {
+        await _dbService.deleteWord(widget.word.id!);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('단어가 삭제되었습니다'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          // 이전 화면으로 돌아가기 (true: 목록 새로고침 필요)
+          Navigator.of(context).pop(true);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('삭제 실패: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   /// 위젯이 제거될 때 호출 (메모리 누수 방지)
   @override
   void dispose() {
@@ -85,7 +140,33 @@ class _WordDetailScreenState extends State<WordDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('단어 상세')),
+      appBar: AppBar(
+        title: const Text('단어 상세'),
+        actions: [
+          // 수정 버튼
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () async {
+              // 수정 화면으로 이동
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => EditWordScreen(word: widget.word),
+                ),
+              );
+              // 수정되었으면 이전 화면으로 돌아가기 (목록 새로고침 필요)
+              if (mounted && result == true) {
+                Navigator.of(context).pop(true);
+              }
+            },
+          ),
+          // 삭제 버튼
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red),
+            onPressed: _deleteWord,
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
