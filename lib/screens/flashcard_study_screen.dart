@@ -1,5 +1,7 @@
 // Flutter Material Design 위젯
 import 'package:flutter/material.dart';
+// 햅틱 피드백
+import 'package:flutter/services.dart';
 // 카드 스와이프 기능을 제공하는 외부 패키지
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 // 단어 모델
@@ -10,6 +12,8 @@ import '../services/database_service.dart';
 import 'package:intl/intl.dart';
 // 학습 기록 모델
 import '../models/study_record.dart';
+// SharedPreferences (튜토리얼 표시 여부 저장)
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// 플래시카드 학습 화면
 /// StatefulWidget: 상태가 변하는 위젯 (단어 목록, 현재 인덱스 등이 변함)
@@ -45,12 +49,49 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
   int _correctCount = 0;
   int _incorrectCount = 0;
 
+  // Undo 기능을 위한 변수들
+  int? _lastWordIndex; // 마지막으로 스와이프한 단어 인덱스
+  CardSwiperDirection? _lastDirection; // 마지막 스와이프 방향
+  int? _lastRecordId; // 마지막으로 저장한 학습 기록 ID (삭제용)
+  bool _canUndo = false; // Undo 가능 여부
+
+  // 튜토리얼 표시 여부
+  bool _showTutorial = false;
+
   /// 위젯이 생성될 때 한 번만 호출되는 메서드
   @override
   void initState() {
     super.initState();
     // 단어 목록 로드
     _loadWords();
+    // 튜토리얼 확인
+    _checkTutorial();
+  }
+
+  /// 튜토리얼을 보여줄지 확인
+  Future<void> _checkTutorial() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeenTutorial = prefs.getBool('hasSeenFlashcardTutorial') ?? false;
+
+    if (!hasSeenTutorial) {
+      // 0.5초 후에 튜토리얼 표시 (화면 로드 후)
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          setState(() {
+            _showTutorial = true;
+          });
+        }
+      });
+    }
+  }
+
+  /// 튜토리얼 닫기
+  Future<void> _closeTutorial() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hasSeenFlashcardTutorial', true);
+    setState(() {
+      _showTutorial = false;
+    });
   }
 
   /// 데이터베이스에서 단어 목록 가져오기
@@ -80,6 +121,9 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
     int? currentIndex,
     CardSwiperDirection direction,
   ) {
+    // 햅틱 피드백 (진동)
+    HapticFeedback.lightImpact();
+
     _saveStudyRecord(previousIndex, direction);
 
     // 학습 통계 업데이트
@@ -125,10 +169,57 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
         isReview: widget.isReviewMode, // 복습 모드 여부 전달
       );
 
-      await _dbService.insertStudyRecord(record);
+      final recordId = await _dbService.insertStudyRecord(record);
+
+      // Undo를 위한 정보 저장
+      setState(() {
+        _lastWordIndex = wordIndex;
+        _lastDirection = direction;
+        _lastRecordId = recordId;
+        _canUndo = true;
+      });
+
       print('학습 기록 저장: ${word.word}, 결과: $result, 복습: ${widget.isReviewMode}'); // 디버깅용
     } catch (e) {
       print('학습 기록 저장 실패: $e'); // 디버깅용
+    }
+  }
+
+  /// Undo 기능 - 마지막 스와이프 되돌리기
+  Future<void> _undoLastSwipe() async {
+    if (!_canUndo || _lastRecordId == null || _lastWordIndex == null) return;
+
+    try {
+      // 햅틱 피드백
+      HapticFeedback.mediumImpact();
+
+      // 데이터베이스에서 마지막 기록 삭제
+      await _dbService.deleteStudyRecord(_lastRecordId!);
+
+      // 통계 및 인덱스 되돌리기
+      setState(() {
+        if (_lastDirection == CardSwiperDirection.right) {
+          _correctCount = _correctCount > 0 ? _correctCount - 1 : 0;
+        } else if (_lastDirection == CardSwiperDirection.left) {
+          _incorrectCount = _incorrectCount > 0 ? _incorrectCount - 1 : 0;
+        }
+
+        // 현재 인덱스를 이전 카드로 되돌리기
+        _currentIndex = _lastWordIndex!;
+
+        // Undo 상태 리셋
+        _canUndo = false;
+        _lastRecordId = null;
+        _lastDirection = null;
+        _lastWordIndex = null;
+      });
+
+      // 카드 되돌리기
+      _cardController.undo();
+
+      print('Undo 완료'); // 디버깅용
+    } catch (e) {
+      print('Undo 실패: $e'); // 디버깅용
     }
   }
 
@@ -326,6 +417,12 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
         title: Text(widget.isReviewMode ? '복습 학습' : '플래시카드 학습'),
         // AppBar 오른쪽 영역에 위젯 배치
         actions: [
+          // Undo 버튼
+          IconButton(
+            onPressed: _canUndo ? _undoLastSwipe : null,
+            icon: const Icon(Icons.undo),
+            tooltip: '되돌리기',
+          ),
           Center(
             child: Padding(
               padding: const EdgeInsets.only(right: 16.0),
@@ -341,84 +438,208 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
           ),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          // 상단 진행률 바
-          LinearProgressIndicator(
-            // value: 0.0 ~ 1.0 사이의 값 (현재 진행률)
-            value: (_currentIndex + 1) / _words.length,
-            minHeight: 6,
-            // 복습 모드일 때는 주황색 진행률 바
-            valueColor: AlwaysStoppedAnimation<Color>(
-              widget.isReviewMode ? Colors.orange : Colors.blue,
-            ),
+          Column(
+            children: [
+              // 상단 진행률 바
+              LinearProgressIndicator(
+                // value: 0.0 ~ 1.0 사이의 값 (현재 진행률)
+                value: (_currentIndex + 1) / _words.length,
+                minHeight: 6,
+                // 복습 모드일 때는 주황색 진행률 바
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  widget.isReviewMode ? Colors.orange : Colors.blue,
+                ),
+              ),
+
+              // Expanded: 남은 공간을 모두 차지
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  // CardSwiper: 카드 스와이프 위젯
+                  child: CardSwiper(
+                    controller: _cardController,
+                    cardsCount: _words.length, // 총 카드 개수
+                    numberOfCardsDisplayed: 2, // 동시에 표시할 카드 개수
+                    onSwipe: _onSwipe, // 스와이프 콜백
+                    // cardBuilder: 각 카드를 그리는 함수
+                    // index: 카드 인덱스
+                    // percentThresholdX, percentThresholdY: 스와이프 진행률 (사용 안 함)
+                    cardBuilder:
+                        (context, index, percentThresholdX, percentThresholdY) {
+                      return FlashcardWidget(word: _words[index]);
+                    },
+                  ),
+                ),
+              ),
+
+              // 하단 버튼 영역
+              Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Row(
+                  // 버튼들을 균등하게 배치
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    // "모름" 버튼 (왼쪽 스와이프)
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        // 프로그래밍 방식으로 왼쪽 스와이프 실행
+                        _cardController.swipe(CardSwiperDirection.left);
+                      },
+                      icon: const Icon(Icons.close, size: 32),
+                      label: const Text('모름'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red.shade400, // 빨간색 배경
+                        foregroundColor: Colors.white, // 흰색 텍스트
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 16,
+                        ),
+                      ),
+                    ),
+                    // "알고있음" 버튼 (오른쪽 스와이프)
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        // 프로그래밍 방식으로 오른쪽 스와이프 실행
+                        _cardController.swipe(CardSwiperDirection.right);
+                      },
+                      icon: const Icon(Icons.check, size: 32),
+                      label: const Text('알고있음'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green.shade400, // 초록색 배경
+                        foregroundColor: Colors.white, // 흰색 텍스트
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 16,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
 
-          // Expanded: 남은 공간을 모두 차지
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              // CardSwiper: 카드 스와이프 위젯
-              child: CardSwiper(
-                controller: _cardController,
-                cardsCount: _words.length, // 총 카드 개수
-                numberOfCardsDisplayed: 2, // 동시에 표시할 카드 개수
-                onSwipe: _onSwipe, // 스와이프 콜백
-                // cardBuilder: 각 카드를 그리는 함수
-                // index: 카드 인덱스
-                // percentThresholdX, percentThresholdY: 스와이프 진행률 (사용 안 함)
-                cardBuilder:
-                    (context, index, percentThresholdX, percentThresholdY) {
-                  return FlashcardWidget(word: _words[index]);
-                },
+          // 튜토리얼 오버레이
+          if (_showTutorial)
+            GestureDetector(
+              onTap: _closeTutorial,
+              child: Container(
+                color: Colors.black.withOpacity(0.8),
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.swipe,
+                          size: 80,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(height: 24),
+                        const Text(
+                          '플래시카드 사용법',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            Column(
+                              children: [
+                                Icon(
+                                  Icons.arrow_back,
+                                  size: 48,
+                                  color: Colors.red.shade300,
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  '왼쪽으로 스와이프\n모름',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Column(
+                              children: [
+                                Icon(
+                                  Icons.arrow_forward,
+                                  size: 48,
+                                  color: Colors.green.shade300,
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  '오른쪽으로 스와이프\n알고있음',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 32),
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.touch_app, color: Colors.white),
+                                  SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      '카드를 탭하면 뜻을 볼 수 있습니다',
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Icon(Icons.undo, color: Colors.white),
+                                  SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      '되돌리기 버튼으로 실수를 취소할 수 있습니다',
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        const Text(
+                          '화면을 탭하여 시작하기',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-
-          // 하단 버튼 영역
-          Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Row(
-              // 버튼들을 균등하게 배치
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                // "모름" 버튼 (왼쪽 스와이프)
-                ElevatedButton.icon(
-                  onPressed: () {
-                    // 프로그래밍 방식으로 왼쪽 스와이프 실행
-                    _cardController.swipe(CardSwiperDirection.left);
-                  },
-                  icon: const Icon(Icons.close, size: 32),
-                  label: const Text('모름'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.shade400, // 빨간색 배경
-                    foregroundColor: Colors.white, // 흰색 텍스트
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 16,
-                    ),
-                  ),
-                ),
-                // "알고있음" 버튼 (오른쪽 스와이프)
-                ElevatedButton.icon(
-                  onPressed: () {
-                    // 프로그래밍 방식으로 오른쪽 스와이프 실행
-                    _cardController.swipe(CardSwiperDirection.right);
-                  },
-                  icon: const Icon(Icons.check, size: 32),
-                  label: const Text('알고있음'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade400, // 초록색 배경
-                    foregroundColor: Colors.white, // 흰색 텍스트
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 16,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );

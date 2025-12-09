@@ -224,6 +224,22 @@ class DatabaseService {
     }
   }
 
+  /// 학습 기록 삭제 (Undo 기능용)
+  /// id: 삭제할 학습 기록의 ID
+  /// 반환값: 삭제된 행의 개수
+  Future<int> deleteStudyRecord(int id) async {
+    try {
+      final db = await database;
+      return await db.delete(
+        'study_records',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    } catch (e) {
+      throw Exception('학습 기록 삭제 실패: $e');
+    }
+  }
+
   /// 특정 날짜의 학습 기록 조회 (복습 제외)
   /// 예: '2024-12-05'
   Future<List<StudyRecord>> getStudyRecordsByDate(String date) async {
