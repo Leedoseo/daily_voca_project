@@ -1,13 +1,7 @@
 // Flutter의 핵심 Material Design 위젯들을 사용하기 위한 패키지
 import 'package:flutter/material.dart';
-// 메인 화면 (BottomNavigationBar가 있는 화면)
-import 'screens/main_screen.dart';
-// 데이터베이스 서비스 (SQLite 관리)
-import 'services/database_service.dart';
-// 단어 API 서비스 (랜덤 단어 가져오기)
-import 'services/word_api_service.dart';
-// SharedPreferences 서비스 (앱 설정 저장)
-import 'services/preferences_service.dart';
+// 로딩 화면 (앱 시작 시 단어 로딩)
+import 'screens/loading_screen.dart';
 // 한국어 locale 초기화를 위한 패키지
 import 'package:intl/date_symbol_data_local.dart';
 
@@ -21,28 +15,7 @@ void main() async {
   // 한국어 locale 데이터 초기화 (DateFormat에서 'ko_KR' 사용하기 위해 필수)
   await initializeDateFormatting('ko_KR', null);
 
-  // 서비스 인스턴스 가져오기
-  final dbService = DatabaseService.instance;
-  final prefsService = PreferencesService.instance;
-  final apiService = WordApiService.instance;
-
-  // SharedPreferences 초기화
-  await prefsService.init();
-
-  // 단어 갱신이 필요한지 확인 (일단위)
-  if (prefsService.shouldUpdateWords()) {
-    // 기존 단어 모두 삭제
-    await dbService.deleteAllWords();
-
-    // API에서 랜덤 단어 50개를 가져와서 데이터베이스에 삽입
-    final words = await apiService.fetchRandomWords();
-    await dbService.initializeWithWords(words);
-
-    // 마지막 갱신 날짜 저장
-    await prefsService.setLastWordUpdateDate(prefsService.getTodayDate());
-  }
-
-  // 앱 실행
+  // 앱 실행 (로딩 화면부터 시작)
   runApp(const MyApp());
 }
 
@@ -83,7 +56,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const MainScreen(), // 앱이 시작될 때 보여줄 첫 화면
+      home: const LoadingScreen(), // 앱이 시작될 때 보여줄 첫 화면 (로딩 화면)
     );
   }
 }
