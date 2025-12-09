@@ -49,12 +49,12 @@ class _HomeScreenState extends State<HomeScreen> {
     // 오늘 날짜
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
-    // 오늘의 학습 기록 조회
-    final todayRecords = await _dbService.getStudyRecordsByDate(today);
+    // 오늘의 학습 통계 조회 (고유 단어 기준)
+    final stats = await _dbService.getStudyStatisticsByDate(today);
 
     // 통계 계산
-    final todayStudied = todayRecords.length;
-    final todayCorrect = todayRecords.where((r) => r.result == true).length;
+    final todayStudied = stats['totalStudied'] ?? 0;
+    final todayCorrect = stats['correctCount'] ?? 0;
     final todayAccuracy =
         todayStudied > 0 ? (todayCorrect / todayStudied * 100) : 0.0;
 
