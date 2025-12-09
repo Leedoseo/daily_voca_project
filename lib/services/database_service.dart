@@ -183,6 +183,25 @@ class DatabaseService {
     }
   }
 
+  /// 틀린 단어 개수 조회 (복습용)
+  /// 성능 최적화: 개수만 필요할 때 사용
+  Future<int> getIncorrectWordsCount() async {
+    try {
+      final db = await database;
+      // COUNT(DISTINCT)로 중복 제거된 틀린 단어 개수만 조회
+      final result = await db.rawQuery('''
+        SELECT COUNT(DISTINCT w.id) as count
+        FROM words w
+        INNER JOIN study_records sr ON w.id = sr.word_id
+        WHERE sr.result = 0
+      ''');
+
+      return Sqflite.firstIntValue(result) ?? 0;
+    } catch (e) {
+      throw Exception('복습 단어 개수 조회 실패: $e');
+    }
+  }
+
   /// Study Records CRUD
   /// 학습 기록 추가
   /// 반환값: 삽입된 행의 ID
