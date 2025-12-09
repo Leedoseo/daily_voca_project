@@ -41,6 +41,10 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
   // 카드 스와이프를 제어하는 컨트롤러
   final CardSwiperController _cardController = CardSwiperController();
 
+  // 학습 통계 (맞힌 개수, 틀린 개수)
+  int _correctCount = 0;
+  int _incorrectCount = 0;
+
   /// 위젯이 생성될 때 한 번만 호출되는 메서드
   @override
   void initState() {
@@ -77,8 +81,16 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
     CardSwiperDirection direction,
   ) {
     _saveStudyRecord(previousIndex, direction);
-    // 현재 인덱스 업데이트
+
+    // 학습 통계 업데이트
     setState(() {
+      if (direction == CardSwiperDirection.right) {
+        _correctCount++; // 오른쪽 스와이프 = 알고있음
+      } else if (direction == CardSwiperDirection.left) {
+        _incorrectCount++; // 왼쪽 스와이프 = 모름
+      }
+
+      // 현재 인덱스 업데이트
       if (currentIndex != null) {
         _currentIndex = currentIndex;
       }
@@ -122,13 +134,154 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
 
   /// 모든 카드 학습 완료 시 표시되는 다이얼로그
   void _showCompletionDialog() {
+    // 정답률 계산
+    final totalCount = _correctCount + _incorrectCount;
+    final accuracyRate = totalCount > 0 ? (_correctCount / totalCount * 100).round() : 0;
+
+    // 정답률에 따른 메시지와 아이콘 결정
+    String message;
+    IconData icon;
+    Color iconColor;
+
+    if (accuracyRate >= 80) {
+      message = '훌륭해요! 🎉';
+      icon = Icons.emoji_events; // 트로피
+      iconColor = Colors.amber;
+    } else if (accuracyRate >= 60) {
+      message = '잘했어요! 👍';
+      icon = Icons.thumb_up;
+      iconColor = Colors.blue;
+    } else if (accuracyRate >= 40) {
+      message = '계속 노력해요! 💪';
+      icon = Icons.trending_up;
+      iconColor = Colors.orange;
+    } else {
+      message = '다시 복습해봐요! 📚';
+      icon = Icons.refresh;
+      iconColor = Colors.red;
+    }
+
     // showDialog: 팝업 다이얼로그 표시
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(widget.isReviewMode ? '복습 완료!' : '학습 완료!'),
-        // 문자열 보간: ${} 안에 변수나 표현식 삽입
-        content: Text('${_words.length}개의 단어 ${widget.isReviewMode ? '복습을' : '학습을'} 완료했습니다.'),
+        title: Row(
+          children: [
+            Icon(icon, color: iconColor, size: 28),
+            const SizedBox(width: 8),
+            Text(widget.isReviewMode ? '복습 완료!' : '학습 완료!'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 메시지
+            Text(
+              message,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // 통계 요약
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  // 정답률
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '$accuracyRate%',
+                        style: TextStyle(
+                          fontSize: 36,
+                          fontWeight: FontWeight.bold,
+                          color: iconColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '정답률',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  const Divider(height: 24),
+
+                  // 맞힌 개수 / 틀린 개수
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // 맞힌 개수
+                      Column(
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.check_circle, color: Colors.green, size: 20),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$_correctCount개',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '맞힌 단어',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      // 틀린 개수
+                      Column(
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.cancel, color: Colors.red, size: 20),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$_incorrectCount개',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '틀린 단어',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () {
