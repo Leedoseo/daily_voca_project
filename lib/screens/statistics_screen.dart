@@ -4,6 +4,10 @@ import 'package:flutter/material.dart';
 import '../services/database_service.dart';
 // 날짜 포맷팅 패키지
 import 'package:intl/intl.dart';
+// 학습 기록 상세 화면
+import 'study_record_detail_screen.dart';
+// 학습 기록 히스토리 화면
+import 'study_history_screen.dart';
 
 /// 통계 화면
 /// 학습 통계를 보여주는 화면 (현재는 플레이스홀더)
@@ -94,6 +98,58 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             Text(
               '오늘의 학습 (${DateFormat('yyyy년 MM월 dd일').format(DateTime.now())})',
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+
+            // 버튼들
+            Row(
+              children: [
+                // 오늘 상세 보기 버튼
+                if (_totalStudied > 0)
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        // 오늘 날짜로 상세 화면 이동
+                        final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => StudyRecordDetailScreen(date: today),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.list_alt),
+                      label: const Text('오늘 상세'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                if (_totalStudied > 0) const SizedBox(width: 12),
+                // 전체 기록 보기 버튼
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      // 학습 기록 히스토리 화면으로 이동
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const StudyHistoryScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.history),
+                    label: const Text('전체 기록'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: Colors.teal,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
 

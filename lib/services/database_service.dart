@@ -257,6 +257,35 @@ class DatabaseService {
     }
   }
 
+  /// 특정 날짜의 학습 기록을 단어 정보와 함께 조회 (복습 제외)
+  /// 반환값: List<Map> - 각 Map은 학습 기록 + 단어 정보
+  Future<List<Map<String, dynamic>>> getStudyRecordsWithWordsByDate(
+      String date) async {
+    try {
+      final db = await database;
+      // JOIN으로 학습 기록과 단어 정보를 함께 조회
+      final result = await db.rawQuery('''
+        SELECT
+          sr.id as record_id,
+          sr.date,
+          sr.result,
+          sr.is_review,
+          w.id as word_id,
+          w.word,
+          w.meaning,
+          w.example
+        FROM study_records sr
+        INNER JOIN words w ON sr.word_id = w.id
+        WHERE sr.date = ? AND sr.is_review = 0
+        ORDER BY sr.id DESC
+      ''', [date]);
+
+      return result;
+    } catch (e) {
+      throw Exception('학습 기록 상세 조회 실패: $e');
+    }
+  }
+
   /// 특정 날짜의 학습 통계 조회 (고유 단어 기준, 복습 제외)
   /// 반환값: {totalStudied, correctCount, incorrectCount}
   Future<Map<String, int>> getStudyStatisticsByDate(String date) async {
@@ -306,6 +335,43 @@ class DatabaseService {
       return result.map((map) => StudyRecord.fromMap(map)).toList();
     } catch (e) {
       throw Exception('학습 기록 조회 실패: $e');
+    }
+  }
+
+  /// 학습 기록이 있는 날짜 목록 조회 (복습 제외, 최신순)
+  /// 반환값: List<Map> - 각 Map은 {date, totalStudied, correctCount, incorrectCount}
+  Future<List<Map<String, dynamic>>> getStudyDates() async {
+    try {
+      final db = await database;
+      // 날짜별로 그룹화하여 통계와 함께 조회
+      // 각 단어의 가장 최근 학습 기록만 사용 (고유 단어 기준)
+      final result = await db.rawQuery('''
+        SELECT
+          date,
+          COUNT(*) as total_studied,
+          SUM(CASE WHEN result = 1 THEN 1 ELSE 0 END) as correct_count,
+          SUM(CASE WHEN result = 0 THEN 1 ELSE 0 END) as incorrect_count
+        FROM study_records
+        WHERE id IN (
+          SELECT MAX(id)
+          FROM study_records
+          WHERE is_review = 0
+          GROUP BY date, word_id
+        )
+        GROUP BY date
+        ORDER BY date DESC
+      ''');
+
+      return result.map((row) {
+        return {
+          'date': row['date'] as String,
+          'totalStudied': (row['total_studied'] as int?) ?? 0,
+          'correctCount': (row['correct_count'] as int?) ?? 0,
+          'incorrectCount': (row['incorrect_count'] as int?) ?? 0,
+        };
+      }).toList();
+    } catch (e) {
+      throw Exception('학습 날짜 목록 조회 실패: $e');
     }
   }
 
