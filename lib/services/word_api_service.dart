@@ -17,8 +17,13 @@ class WordApiService {
   static const String _dictionaryApiUrl =
       'https://api.dictionaryapi.dev/api/v2/entries/en';
 
-  /// 랜덤 단어 50개 가져오기
-  Future<List<Word>> fetchRandomWords({int count = 50}) async {
+  /// 랜덤 단어 가져오기
+  /// count: 가져올 단어 개수 (기본값: 50)
+  /// onProgress: 진행률 콜백 함수 (로딩 화면에서 사용)
+  Future<List<Word>> fetchRandomWords({
+    int count = 50,
+    Function(int loaded, int total)? onProgress,
+  }) async {
     try {
       // 1. 랜덤 단어 목록 가져오기 (50개)
       final wordListResponse =
@@ -80,6 +85,11 @@ class WordApiService {
             meaning: 'Definition not available',
             example: 'Example not available',
           ));
+        }
+
+        // 진행률 콜백 호출 (로딩 화면 업데이트)
+        if (onProgress != null) {
+          onProgress(i + 1, count);
         }
 
         // API 속도 제한 방지를 위한 짧은 딜레이
