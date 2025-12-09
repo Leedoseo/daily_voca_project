@@ -100,14 +100,19 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
     int wordIndex,
     CardSwiperDirection direction,
   ) async {
-    final word = _words[wordIndex];
-    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    final result =
-        direction == CardSwiperDirection.right; // 오른쪽 = 알고있음, 왼쪽 = 모름
+    try {
+      final word = _words[wordIndex];
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final result =
+          direction == CardSwiperDirection.right; // 오른쪽 = 알고있음, 왼쪽 = 모름
 
-    final record = StudyRecord(date: today, wordId: word.id!, result: result);
+      final record = StudyRecord(date: today, wordId: word.id!, result: result);
 
-    await _dbService.insertStudyRecord(record);
+      await _dbService.insertStudyRecord(record);
+      print('학습 기록 저장: ${word.word}, 결과: $result'); // 디버깅용
+    } catch (e) {
+      print('학습 기록 저장 실패: $e'); // 디버깅용
+    }
   }
 
   /// 모든 카드 학습 완료 시 표시되는 다이얼로그
@@ -342,39 +347,48 @@ class _FlashcardWidgetState extends State<FlashcardWidget> {
                       ),
                     ),
                   ] else ...[
-                    // 뒷면: 뜻과 예문 표시
-                    Text(
-                      widget.word.meaning,
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 24),
-                    // 예문을 반투명 박스 안에 표시
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        // withOpacity: 투명도 설정 (0.0 ~ 1.0)
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        widget.word.example,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          color: Colors.white,
-                          fontStyle: FontStyle.italic,
+                    // 뒷면: 뜻과 예문 표시 (스크롤 가능)
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              widget.word.meaning,
+                              style: const TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 24),
+                            // 예문을 반투명 박스 안에 표시
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                // withOpacity: 투명도 설정 (0.0 ~ 1.0)
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                widget.word.example,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.white,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              '탭하여 단어 보기',
+                              style: TextStyle(fontSize: 16, color: Colors.white70),
+                            ),
+                          ],
                         ),
-                        textAlign: TextAlign.center,
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      '탭하여 단어 보기',
-                      style: TextStyle(fontSize: 16, color: Colors.white70),
                     ),
                   ],
                 ],
