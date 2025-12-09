@@ -4,12 +4,51 @@ import 'package:flutter/material.dart';
 import 'word_list_screen.dart';
 // 플래시카드 학습 화면
 import 'flashcard_study_screen.dart';
+// 데이터베이스 서비스
+import '../services/database_service.dart';
 
 /// 학습 화면
 /// 학습 시작 버튼과 단어 목록 버튼을 제공하는 허브 화면
-/// StatelessWidget: 상태가 변하지 않는 정적 위젯
-class StudyScreen extends StatelessWidget {
+/// StatefulWidget: 틀린 단어 개수를 동적으로 로드하기 위해 Stateful 사용
+class StudyScreen extends StatefulWidget {
   const StudyScreen({super.key});
+
+  @override
+  State<StudyScreen> createState() => _StudyScreenState();
+}
+
+/// StudyScreen의 상태 관리 클래스
+class _StudyScreenState extends State<StudyScreen> {
+  // 데이터베이스 서비스
+  final DatabaseService _dbService = DatabaseService.instance;
+
+  // 틀린 단어 개수
+  int _incorrectWordsCount = 0;
+
+  // 로딩 중 여부
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadIncorrectWordsCount();
+  }
+
+  /// 틀린 단어 개수 로드
+  Future<void> _loadIncorrectWordsCount() async {
+    try {
+      final count = await _dbService.getIncorrectWordsCount();
+      setState(() {
+        _incorrectWordsCount = count;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _incorrectWordsCount = 0;
+        _isLoading = false;
+      });
+    }
+  }
 
   /// 화면을 그리는 메서드
   @override
@@ -70,26 +109,46 @@ class StudyScreen extends StatelessWidget {
 
             // 복습 시작 버튼 (주황색 버튼) - 새로 추가
             ElevatedButton.icon(
-              onPressed: () {
-                // 복습 모드로 플래시카드 학습 화면 열기
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const FlashcardStudyScreen(
-                      isReviewMode: true, // 복습 모드 활성화
-                    ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.refresh, size: 32),
-              label: const Text('틀린 단어 복습', style: TextStyle(fontSize: 18)),
+              onPressed: _isLoading
+                  ? null
+                  : (_incorrectWordsCount > 0
+                      ? () {
+                          // 복습 모드로 플래시카드 학습 화면 열기
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const FlashcardStudyScreen(
+                                isReviewMode: true, // 복습 모드 활성화
+                              ),
+                            ),
+                          );
+                        }
+                      : null), // 틀린 단어가 없으면 버튼 비활성화
+              icon: _isLoading
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Icon(Icons.refresh, size: 32),
+              label: Text(
+                _isLoading
+                    ? '로딩 중...'
+                    : '틀린 단어 복습 ($_incorrectWordsCount개)',
+                style: const TextStyle(fontSize: 18),
+              ),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 48,
                   vertical: 20,
                 ),
-                backgroundColor: Colors.orange,  // 주황색 배경
-                foregroundColor: Colors.white,   // 흰색 텍스트
+                backgroundColor: Colors.orange, // 주황색 배경
+                foregroundColor: Colors.white, // 흰색 텍스트
+                disabledBackgroundColor: Colors.grey, // 비활성화 시 회색 배경
+                disabledForegroundColor: Colors.white70, // 비활성화 시 반투명 흰색 텍스트
               ),
             ),
             const SizedBox(height: 16),
