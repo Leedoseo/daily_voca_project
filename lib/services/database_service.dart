@@ -46,8 +46,9 @@ class DatabaseService {
     // 데이터베이스 열기 (없으면 생성)
     return await openDatabase(
       path,
-      version: 1, // 데이터베이스 버전 (스키마 변경 시 증가)
+      version: 2, // 데이터베이스 버전 (스키마 변경 시 증가)
       onCreate: _createDB, // 처음 생성될 때 호출될 함수
+      onUpgrade: _upgradeDB, // 버전 업그레이드 시 호출될 함수
     );
   }
 
@@ -76,9 +77,21 @@ class DatabaseService {
         date $textType,
         word_id $intType,
         result $intType,
+        is_review $intType DEFAULT 0,
         FOREIGN KEY (word_id) REFERENCES words (id)
       )
     ''');
+  }
+
+  /// 데이터베이스 업그레이드
+  /// 버전이 올라갈 때 기존 데이터를 유지하면서 스키마 변경
+  Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // 버전 1 -> 2: study_records 테이블에 is_review 컬럼 추가
+      await db.execute('''
+        ALTER TABLE study_records ADD COLUMN is_review INTEGER NOT NULL DEFAULT 0
+      ''');
+    }
   }
 
   /// Words CRUD
@@ -182,15 +195,15 @@ class DatabaseService {
     }
   }
 
-  /// 특정 날짜의 학습 기록 조회
+  /// 특정 날짜의 학습 기록 조회 (복습 제외)
   /// 예: '2024-12-05'
   Future<List<StudyRecord>> getStudyRecordsByDate(String date) async {
     try {
       final db = await database;
-      // SELECT * FROM study_records WHERE date = ?
+      // SELECT * FROM study_records WHERE date = ? AND is_review = 0
       final result = await db.query(
         'study_records',
-        where: 'date = ?',
+        where: 'date = ? AND is_review = 0',
         whereArgs: [date],
       );
       return result.map((map) => StudyRecord.fromMap(map)).toList();
@@ -199,11 +212,15 @@ class DatabaseService {
     }
   }
 
-  /// 모든 학습 기록 조회
+  /// 모든 학습 기록 조회 (복습 제외)
   Future<List<StudyRecord>> getAllStudyRecords() async {
     try {
       final db = await database;
-      final result = await db.query('study_records');
+      // is_review = 0인 것만 조회 (일반 학습만)
+      final result = await db.query(
+        'study_records',
+        where: 'is_review = 0',
+      );
       return result.map((map) => StudyRecord.fromMap(map)).toList();
     } catch (e) {
       throw Exception('학습 기록 조회 실패: $e');
