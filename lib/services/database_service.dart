@@ -161,18 +161,23 @@ class DatabaseService {
   }
 
   /// 틀린 단어 목록 조회 (복습용)
-  /// result = 0 (모름)인 단어들을 중복 없이 반환
+  /// 가장 최근 학습 기록에서 result = 0 (모름)인 단어들을 반환
+  /// 복습에서 맞춘 단어는 제외됨
   Future<List<Word>> getIncorrectWords() async {
     try {
       final db = await database;
-      // SQL JOIN 쿼리 : study_records 테이블과 words 테이블을 조인
-      // DISTINCT: 중복 제거
-      // WHERE result = 0: 틀린 단어만!
+      // 서브쿼리를 사용하여 각 단어의 가장 최근 학습 기록만 조회
+      // MAX(sr.id): 같은 단어에 대한 여러 기록 중 가장 최근 것 (id가 클수록 최근)
       final result = await db.rawQuery('''
         SELECT DISTINCT w.*
         FROM words w
         INNER JOIN study_records sr ON w.id = sr.word_id
-        WHERE sr.result = 0
+        WHERE sr.id IN (
+          SELECT MAX(id)
+          FROM study_records
+          GROUP BY word_id
+        )
+        AND sr.result = 0
         ORDER BY sr.date DESC
       ''');
 
@@ -184,16 +189,21 @@ class DatabaseService {
   }
 
   /// 틀린 단어 개수 조회 (복습용)
-  /// 성능 최적화: 개수만 필요할 때 사용
+  /// 가장 최근 학습 기록 기준으로 틀린 단어 개수만 반환
   Future<int> getIncorrectWordsCount() async {
     try {
       final db = await database;
-      // COUNT(DISTINCT)로 중복 제거된 틀린 단어 개수만 조회
+      // 서브쿼리를 사용하여 각 단어의 가장 최근 학습 기록만 카운트
       final result = await db.rawQuery('''
         SELECT COUNT(DISTINCT w.id) as count
         FROM words w
         INNER JOIN study_records sr ON w.id = sr.word_id
-        WHERE sr.result = 0
+        WHERE sr.id IN (
+          SELECT MAX(id)
+          FROM study_records
+          GROUP BY word_id
+        )
+        AND sr.result = 0
       ''');
 
       return Sqflite.firstIntValue(result) ?? 0;
@@ -228,6 +238,43 @@ class DatabaseService {
       return result.map((map) => StudyRecord.fromMap(map)).toList();
     } catch (e) {
       throw Exception('학습 기록 조회 실패: $e');
+    }
+  }
+
+  /// 특정 날짜의 학습 통계 조회 (고유 단어 기준, 복습 제외)
+  /// 반환값: {totalStudied, correctCount, incorrectCount}
+  Future<Map<String, int>> getStudyStatisticsByDate(String date) async {
+    try {
+      final db = await database;
+
+      // 각 단어의 가장 최근 학습 기록만 사용하여 통계 계산
+      // 같은 날 여러 번 학습한 단어는 마지막 결과만 반영
+      final result = await db.rawQuery('''
+        SELECT
+          COUNT(*) as total,
+          SUM(CASE WHEN result = 1 THEN 1 ELSE 0 END) as correct,
+          SUM(CASE WHEN result = 0 THEN 1 ELSE 0 END) as incorrect
+        FROM study_records
+        WHERE id IN (
+          SELECT MAX(id)
+          FROM study_records
+          WHERE date = ? AND is_review = 0
+          GROUP BY word_id
+        )
+      ''', [date]);
+
+      if (result.isEmpty) {
+        return {'totalStudied': 0, 'correctCount': 0, 'incorrectCount': 0};
+      }
+
+      final row = result.first;
+      return {
+        'totalStudied': (row['total'] as int?) ?? 0,
+        'correctCount': (row['correct'] as int?) ?? 0,
+        'incorrectCount': (row['incorrect'] as int?) ?? 0,
+      };
+    } catch (e) {
+      throw Exception('학습 통계 조회 실패: $e');
     }
   }
 
