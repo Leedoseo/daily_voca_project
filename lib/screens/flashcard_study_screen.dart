@@ -14,6 +14,8 @@ import 'package:intl/intl.dart';
 import '../models/study_record.dart';
 // SharedPreferences (튜토리얼 표시 여부 저장)
 import 'package:shared_preferences/shared_preferences.dart';
+// TTS 서비스
+import '../services/tts_service.dart';
 
 /// 플래시카드 학습 화면
 /// StatefulWidget: 상태가 변하는 위젯 (단어 목록, 현재 인덱스 등이 변함)
@@ -66,6 +68,8 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
     _loadWords();
     // 튜토리얼 확인
     _checkTutorial();
+    // TTS 초기화
+    TtsService.instance.initialize();
   }
 
   /// 튜토리얼을 보여줄지 확인
@@ -716,6 +720,27 @@ class _FlashcardWidgetState extends State<FlashcardWidget> {
                         color: Colors.white,
                       ),
                       textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    // 발음 듣기 버튼
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        // TTS로 단어 발음 재생
+                        TtsService.instance.speak(widget.word.word);
+                      },
+                      icon: const Icon(Icons.volume_up, size: 28),
+                      label: const Text('발음 듣기', style: TextStyle(fontSize: 16)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white.withOpacity(0.2),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 16,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 24),
                     const Text(
