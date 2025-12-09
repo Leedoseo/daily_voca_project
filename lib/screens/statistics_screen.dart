@@ -41,27 +41,38 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   Future<void> _loadStatistics() async {
     setState(() => _isLoading = true);
 
-    // 오늘 날짜
-    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    try {
+      // 오늘 날짜
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
-    // 오늘의 학습 기록 조회
-    final records = await _dbService.getStudyRecordsByDate(today);
+      // 오늘의 학습 통계 조회 (고유 단어 기준)
+      final stats = await _dbService.getStudyStatisticsByDate(today);
 
-    // 통계 계산
-    final totalStudied = records.length;
-    final correctCount = records.where((r) => r.result == true).length;
-    final incorrectCount = records.where((r) => r.result == false).length;
-    final accuracy = totalStudied > 0
-        ? (correctCount / totalStudied * 100)
-        : 0.0;
+      // 통계 계산
+      final totalStudied = stats['totalStudied'] ?? 0;
+      final correctCount = stats['correctCount'] ?? 0;
+      final incorrectCount = stats['incorrectCount'] ?? 0;
+      final accuracy = totalStudied > 0
+          ? (correctCount / totalStudied * 100)
+          : 0.0;
 
-    setState(() {
-      _totalStudied = totalStudied;
-      _correctCount = correctCount;
-      _incorrectCount = incorrectCount;
-      _accuracy = accuracy;
-      _isLoading = false;
-    });
+      setState(() {
+        _totalStudied = totalStudied;
+        _correctCount = correctCount;
+        _incorrectCount = incorrectCount;
+        _accuracy = accuracy;
+        _isLoading = false;
+      });
+    } catch (e) {
+      // 에러 발생 시 기본값으로 설정
+      setState(() {
+        _totalStudied = 0;
+        _correctCount = 0;
+        _incorrectCount = 0;
+        _accuracy = 0.0;
+        _isLoading = false;
+      });
+    }
   }
 
   @override

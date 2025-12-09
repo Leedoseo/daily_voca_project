@@ -112,9 +112,9 @@ class _StudyScreenState extends State<StudyScreen> {
               onPressed: _isLoading
                   ? null
                   : (_incorrectWordsCount > 0
-                      ? () {
+                      ? () async {
                           // 복습 모드로 플래시카드 학습 화면 열기
-                          Navigator.push(
+                          await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) => const FlashcardStudyScreen(
@@ -122,6 +122,8 @@ class _StudyScreenState extends State<StudyScreen> {
                               ),
                             ),
                           );
+                          // 복습 완료 후 돌아왔을 때 틀린 단어 개수 새로고침
+                          _loadIncorrectWordsCount();
                         }
                       : null), // 틀린 단어가 없으면 버튼 비활성화
               icon: _isLoading
