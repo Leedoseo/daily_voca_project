@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'screens/main_screen.dart';
 // 데이터베이스 서비스 (SQLite 관리)
 import 'services/database_service.dart';
-// 초기 단어 데이터 (50개의 토익 필수 단어)
-import 'utils/initial_data.dart';
+// 단어 API 서비스 (랜덤 단어 가져오기)
+import 'services/word_api_service.dart';
+// SharedPreferences 서비스 (앱 설정 저장)
+import 'services/preferences_service.dart';
 // 한국어 locale 초기화를 위한 패키지
 import 'package:intl/date_symbol_data_local.dart';
 
@@ -19,18 +21,25 @@ void main() async {
   // 한국어 locale 데이터 초기화 (DateFormat에서 'ko_KR' 사용하기 위해 필수)
   await initializeDateFormatting('ko_KR', null);
 
-  // 데이터베이스 서비스의 싱글톤 인스턴스 가져오기
-  // 싱글톤: 앱 전체에서 하나의 인스턴스만 사용
+  // 서비스 인스턴스 가져오기
   final dbService = DatabaseService.instance;
+  final prefsService = PreferencesService.instance;
+  final apiService = WordApiService.instance;
 
-  // await: 비동기 작업이 완료될 때까지 기다림
-  // 데이터베이스에 저장된 단어 개수를 가져옴
-  final wordCount = await dbService.getWordCount();
+  // SharedPreferences 초기화
+  await prefsService.init();
 
-  // 데이터베이스가 비어있으면 (처음 실행할 때)
-  if (wordCount == 0) {
-    // 50개의 초기 단어 데이터를 데이터베이스에 삽입
-    await dbService.initializeWithWords(InitialData.words);
+  // 단어 갱신이 필요한지 확인 (일단위)
+  if (prefsService.shouldUpdateWords()) {
+    // 기존 단어 모두 삭제
+    await dbService.deleteAllWords();
+
+    // API에서 랜덤 단어 50개를 가져와서 데이터베이스에 삽입
+    final words = await apiService.fetchRandomWords();
+    await dbService.initializeWithWords(words);
+
+    // 마지막 갱신 날짜 저장
+    await prefsService.setLastWordUpdateDate(prefsService.getTodayDate());
   }
 
   // 앱 실행
