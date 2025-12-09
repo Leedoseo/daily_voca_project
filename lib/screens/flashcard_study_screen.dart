@@ -106,10 +106,15 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
       final result =
           direction == CardSwiperDirection.right; // 오른쪽 = 알고있음, 왼쪽 = 모름
 
-      final record = StudyRecord(date: today, wordId: word.id!, result: result);
+      final record = StudyRecord(
+        date: today,
+        wordId: word.id!,
+        result: result,
+        isReview: widget.isReviewMode, // 복습 모드 여부 전달
+      );
 
       await _dbService.insertStudyRecord(record);
-      print('학습 기록 저장: ${word.word}, 결과: $result'); // 디버깅용
+      print('학습 기록 저장: ${word.word}, 결과: $result, 복습: ${widget.isReviewMode}'); // 디버깅용
     } catch (e) {
       print('학습 기록 저장 실패: $e'); // 디버깅용
     }
@@ -332,7 +337,7 @@ class _FlashcardWidgetState extends State<FlashcardWidget> {
                     Text(
                       widget.word.word,
                       style: const TextStyle(
-                        fontSize: 48,
+                        fontSize: 32,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
@@ -356,7 +361,7 @@ class _FlashcardWidgetState extends State<FlashcardWidget> {
                             Text(
                               widget.word.meaning,
                               style: const TextStyle(
-                                fontSize: 32,
+                                fontSize: 24,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),

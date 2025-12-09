@@ -14,12 +14,16 @@ class StudyRecord {
   // 학습 결과 (true: 알고있음, false: 모름)
   final bool result;
 
+  // 복습 모드 여부 (true: 복습, false: 일반 학습)
+  final bool isReview;
+
   /// 생성자
   StudyRecord({
     this.id,
     required this.date,
     required this.wordId,
     required this.result,
+    this.isReview = false, // 기본값: 일반 학습
   });
 
   /// StudyRecord 객체를 Map으로 변환 (데이터베이스에 저장할 때 사용)
@@ -30,6 +34,7 @@ class StudyRecord {
       'date': date,
       'word_id': wordId, // 데이터베이스 컬럼명은 snake_case
       'result': result ? 1 : 0, // bool → int 변환 (삼항 연산자)
+      'is_review': isReview ? 1 : 0, // 복습 여부
     };
   }
 
@@ -41,6 +46,7 @@ class StudyRecord {
       date: map['date'] as String,
       wordId: map['word_id'] as int, // 데이터베이스 컬럼명
       result: map['result'] == 1, // int → bool 변환 (1이면 true)
+      isReview: map['is_review'] == 1, // 복습 여부
     );
   }
 }
