@@ -6,8 +6,12 @@ import '../services/database_service.dart';
 import '../services/word_api_service.dart';
 // SharedPreferences 서비스
 import '../services/preferences_service.dart';
+// SharedPreferences
+import 'package:shared_preferences/shared_preferences.dart';
 // 메인 화면
 import 'main_screen.dart';
+// 온보딩 화면
+import 'onboarding_screen.dart';
 
 /// 로딩 화면
 /// 앱 시작 시 단어 데이터를 로딩하는 화면
@@ -47,6 +51,20 @@ class _LoadingScreenState extends State<LoadingScreen> {
   /// 앱 초기화 (단어 로딩)
   Future<void> _initializeApp() async {
     try {
+      // 첫 실행 확인
+      final prefs = await SharedPreferences.getInstance();
+      final isFirstLaunch = prefs.getBool('is_first_launch') ?? true;
+
+      // 첫 실행이면 온보딩 화면으로 이동
+      if (isFirstLaunch) {
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+          );
+        }
+        return;
+      }
+
       final dbService = DatabaseService.instance;
       final prefsService = PreferencesService.instance;
       final apiService = WordApiService.instance;

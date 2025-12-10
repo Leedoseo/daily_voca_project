@@ -10,6 +10,8 @@ import 'flashcard_study_screen.dart';
 import 'add_word_screen.dart';
 // 설정 화면
 import 'settings_screen.dart';
+// SharedPreferences
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// 홈 화면
 /// 앱의 메인 대시보드 - 오늘의 학습 목표와 통계를 표시
@@ -34,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _todayStudied = 0; // 오늘 학습한 단어 수
   int _todayCorrect = 0; // 오늘 맞힌 단어 수
   double _todayAccuracy = 0.0; // 오늘 정확도
+  int _dailyGoal = 50; // 일일 학습 목표
 
   /// 위젯이 생성될 때 한 번만 호출
   @override
@@ -62,11 +65,16 @@ class _HomeScreenState extends State<HomeScreen> {
     final todayAccuracy =
         todayStudied > 0 ? (todayCorrect / todayStudied * 100) : 0.0;
 
+    // 학습 목표 로드
+    final prefs = await SharedPreferences.getInstance();
+    final dailyGoal = prefs.getInt('daily_goal') ?? 50;
+
     setState(() {
       _totalWords = totalWords;
       _todayStudied = todayStudied;
       _todayCorrect = todayCorrect;
       _todayAccuracy = todayAccuracy;
+      _dailyGoal = dailyGoal;
       _isLoading = false;
     });
   }
@@ -262,8 +270,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// 학습 진행률 카드 위젯
   Widget _buildProgressCard() {
-    // 오늘의 목표: 전체 단어 수 (나중에 사용자 설정으로 변경 가능)
-    final goal = _totalWords;
+    // 오늘의 목표: 사용자 설정 값 사용
+    final goal = _dailyGoal;
     final progress = goal > 0 ? _todayStudied / goal : 0.0;
 
     return Card(
