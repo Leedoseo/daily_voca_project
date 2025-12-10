@@ -29,6 +29,10 @@ dependencies:
   # 유틸리티
   intl: ^0.19.0
   shared_preferences: ^2.2.2
+  timezone: ^0.9.2
+
+  # 알림
+  flutter_local_notifications: ^18.0.1
 
   # HTTP 통신
   http: ^1.1.0

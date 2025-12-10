@@ -375,6 +375,34 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
                 ],
               ),
             ),
+            // 다음 학습 가능 시간 안내 (복습 모드가 아닐 때만)
+            if (!widget.isReviewMode) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.access_time, color: Colors.orange.shade700, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '오늘 학습을 완료했어요!\n내일 다시 만나요! 😊',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.orange.shade900,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
         actions: [

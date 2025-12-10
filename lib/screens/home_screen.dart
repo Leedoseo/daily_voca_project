@@ -8,6 +8,8 @@ import 'package:intl/intl.dart';
 import 'flashcard_study_screen.dart';
 // 단어 추가 화면
 import 'add_word_screen.dart';
+// 설정 화면
+import 'settings_screen.dart';
 
 /// 홈 화면
 /// 앱의 메인 대시보드 - 오늘의 학습 목표와 통계를 표시
@@ -79,6 +81,19 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('홈'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SettingsScreen(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: _totalWords == 0
           ? _buildEmptyState()

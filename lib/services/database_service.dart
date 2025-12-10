@@ -2,6 +2,8 @@
 import 'package:sqflite/sqflite.dart';
 // 파일 경로 조작을 위한 패키지 (join 함수 사용)
 import 'package:path/path.dart';
+// 날짜 포맷팅 패키지
+import 'package:intl/intl.dart';
 // 단어 모델
 import '../models/word.dart';
 // 학습 기록 모델
@@ -415,6 +417,39 @@ class DatabaseService {
     // 배치 실행 (모든 INSERT를 한 번에 수행)
     // noResult: 결과 반환하지 않음 (더 빠름)
     await batch.commit(noResult: true);
+  }
+
+  /// 오늘 날짜에 학습한 단어가 있는지 확인
+  Future<bool> hasTodayStudyRecords() async {
+    try {
+      final db = await database;
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+      final result = await db.rawQuery(
+        'SELECT COUNT(*) as count FROM study_records WHERE date = ? AND is_review = 0',
+        [today],
+      );
+
+      final count = Sqflite.firstIntValue(result) ?? 0;
+      return count > 0;
+    } catch (e) {
+      throw Exception('오늘 학습 기록 확인 실패: $e');
+    }
+  }
+
+  /// 마지막 학습 날짜 조회
+  Future<String?> getLastStudyDate() async {
+    try {
+      final db = await database;
+      final result = await db.rawQuery(
+        'SELECT date FROM study_records WHERE is_review = 0 ORDER BY date DESC LIMIT 1',
+      );
+
+      if (result.isEmpty) return null;
+      return result.first['date'] as String?;
+    } catch (e) {
+      throw Exception('마지막 학습 날짜 조회 실패: $e');
+    }
   }
 
   /// 데이터베이스 연결 종료
