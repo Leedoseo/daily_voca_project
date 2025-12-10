@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'screens/loading_screen.dart';
 // 한국어 locale 초기화를 위한 패키지
 import 'package:intl/date_symbol_data_local.dart';
+// 알림 서비스
+import 'services/notification_service.dart';
 
 // 앱의 시작점 (진입점)
 // async: 비동기 함수 - await를 사용할 수 있음
@@ -14,6 +16,9 @@ void main() async {
 
   // 한국어 locale 데이터 초기화 (DateFormat에서 'ko_KR' 사용하기 위해 필수)
   await initializeDateFormatting('ko_KR', null);
+
+  // 알림 서비스 초기화
+  await NotificationService.instance.initialize();
 
   // 앱 실행 (로딩 화면부터 시작)
   runApp(const MyApp());
