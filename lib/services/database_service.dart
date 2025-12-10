@@ -377,6 +377,127 @@ class DatabaseService {
     }
   }
 
+  /// 최근 N일간의 학습 통계 조회 (복습 제외)
+  /// days: 조회할 일수 (예: 7일, 30일)
+  /// 반환값: List<Map> - 각 Map은 {date, totalStudied, correctCount, incorrectCount, accuracy}
+  /// 학습 기록이 없는 날은 0으로 채워서 반환
+  Future<List<Map<String, dynamic>>> getRecentDaysStatistics(int days) async {
+    try {
+      final db = await database;
+      final now = DateTime.now();
+      final statistics = <Map<String, dynamic>>[];
+
+      // 최근 N일간의 날짜 생성 (오늘부터 역순)
+      for (int i = days - 1; i >= 0; i--) {
+        final date = now.subtract(Duration(days: i));
+        final dateStr = DateFormat('yyyy-MM-dd').format(date);
+
+        // 해당 날짜의 통계 조회
+        final result = await db.rawQuery('''
+          SELECT
+            COUNT(*) as total,
+            SUM(CASE WHEN result = 1 THEN 1 ELSE 0 END) as correct,
+            SUM(CASE WHEN result = 0 THEN 1 ELSE 0 END) as incorrect
+          FROM study_records
+          WHERE id IN (
+            SELECT MAX(id)
+            FROM study_records
+            WHERE date = ? AND is_review = 0
+            GROUP BY word_id
+          )
+        ''', [dateStr]);
+
+        final row = result.isNotEmpty ? result.first : null;
+        final totalStudied = (row?['total'] as int?) ?? 0;
+        final correctCount = (row?['correct'] as int?) ?? 0;
+        final incorrectCount = (row?['incorrect'] as int?) ?? 0;
+        final accuracy = totalStudied > 0 ? (correctCount / totalStudied * 100) : 0.0;
+
+        statistics.add({
+          'date': dateStr,
+          'totalStudied': totalStudied,
+          'correctCount': correctCount,
+          'incorrectCount': incorrectCount,
+          'accuracy': accuracy,
+        });
+      }
+
+      return statistics;
+    } catch (e) {
+      throw Exception('최근 통계 조회 실패: $e');
+    }
+  }
+
+  /// 가장 많이 틀린 단어 조회 (복습 포함)
+  /// limit: 조회할 단어 개수
+  /// 반환값: List<Map> - 각 Map은 {word, incorrectCount}
+  Future<List<Map<String, dynamic>>> getMostIncorrectWords(int limit) async {
+    try {
+      final db = await database;
+      final result = await db.rawQuery('''
+        SELECT
+          w.id,
+          w.word,
+          w.meaning,
+          COUNT(*) as incorrect_count
+        FROM study_records sr
+        INNER JOIN words w ON sr.word_id = w.id
+        WHERE sr.result = 0
+        GROUP BY w.id, w.word, w.meaning
+        ORDER BY incorrect_count DESC
+        LIMIT ?
+      ''', [limit]);
+
+      return result.map((row) {
+        return {
+          'id': row['id'] as int,
+          'word': row['word'] as String,
+          'meaning': row['meaning'] as String,
+          'incorrectCount': (row['incorrect_count'] as int?) ?? 0,
+        };
+      }).toList();
+    } catch (e) {
+      throw Exception('가장 많이 틀린 단어 조회 실패: $e');
+    }
+  }
+
+  /// 가장 잘 아는 단어 조회 (복습 포함, 정답률 기준)
+  /// limit: 조회할 단어 개수
+  /// 반환값: List<Map> - 각 Map은 {word, correctCount, totalCount, accuracy}
+  Future<List<Map<String, dynamic>>> getMostCorrectWords(int limit) async {
+    try {
+      final db = await database;
+      final result = await db.rawQuery('''
+        SELECT
+          w.id,
+          w.word,
+          w.meaning,
+          SUM(CASE WHEN sr.result = 1 THEN 1 ELSE 0 END) as correct_count,
+          COUNT(*) as total_count,
+          (SUM(CASE WHEN sr.result = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) as accuracy
+        FROM study_records sr
+        INNER JOIN words w ON sr.word_id = w.id
+        GROUP BY w.id, w.word, w.meaning
+        HAVING COUNT(*) >= 3
+        ORDER BY accuracy DESC, correct_count DESC
+        LIMIT ?
+      ''', [limit]);
+
+      return result.map((row) {
+        return {
+          'id': row['id'] as int,
+          'word': row['word'] as String,
+          'meaning': row['meaning'] as String,
+          'correctCount': (row['correct_count'] as int?) ?? 0,
+          'totalCount': (row['total_count'] as int?) ?? 0,
+          'accuracy': (row['accuracy'] as double?) ?? 0.0,
+        };
+      }).toList();
+    } catch (e) {
+      throw Exception('가장 잘 아는 단어 조회 실패: $e');
+    }
+  }
+
   // 유틸리티
   /// 모든 단어 삭제 (테스트용)
   Future<void> deleteAllWords() async {
