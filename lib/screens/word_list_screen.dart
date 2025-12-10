@@ -166,12 +166,7 @@ class _WordListScreenState extends State<WordListScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _filteredWords.isEmpty
-              ? const Center(
-                  child: Text(
-                    '단어가 없습니다',
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
-                  ),
-                )
+              ? _buildEmptyState()
               : ListView.builder(
                   itemCount: _filteredWords.length,
                   itemBuilder: (context, index) {
@@ -285,6 +280,82 @@ class _WordListScreenState extends State<WordListScreen> {
                     );
                   },
                 ),
+    );
+  }
+
+  /// 빈 상태 위젯
+  Widget _buildEmptyState() {
+    // 검색어가 있으면 검색 결과 없음, 없으면 단어 목록 비어있음
+    final isSearching = _searchController.text.isNotEmpty;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isSearching ? Icons.search_off : Icons.book_outlined,
+              size: 100,
+              color: Colors.grey.shade300,
+            ),
+            const SizedBox(height: 24),
+            Text(
+              isSearching ? '검색 결과가 없습니다' : '단어가 없습니다',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              isSearching
+                  ? '다른 검색어로 시도해보세요'
+                  : '우측 하단 + 버튼을 눌러\n첫 번째 단어를 추가해보세요!',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade500,
+                height: 1.5,
+              ),
+            ),
+            if (!isSearching) ...[
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AddWordScreen(),
+                    ),
+                  );
+                  if (result == true) {
+                    _loadWords();
+                  }
+                },
+                icon: const Icon(Icons.add, size: 28),
+                label: const Text(
+                  '단어 추가하기',
+                  style: TextStyle(fontSize: 18),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  elevation: 4,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 

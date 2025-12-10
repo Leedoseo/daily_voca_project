@@ -8,6 +8,8 @@ import 'package:intl/intl.dart';
 import 'study_record_detail_screen.dart';
 // 학습 기록 히스토리 화면
 import 'study_history_screen.dart';
+// 플래시카드 학습 화면
+import 'flashcard_study_screen.dart';
 
 /// 통계 화면
 /// 학습 통계를 보여주는 화면 (현재는 플레이스홀더)
@@ -89,11 +91,13 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('통계')),
       // 통계 카드를 표시하는 UI
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: _totalStudied == 0
+          ? _buildEmptyState()
+          : Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
             // 오늘 날짜 표시
             Text(
               '오늘의 학습 (${DateFormat('yyyy년 MM월 dd일').format(DateTime.now())})',
@@ -189,6 +193,93 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                     Colors.red,
                   ),
                 ],
+              ),
+            ),
+          ],
+                ),
+              ),
+    );
+  }
+
+  /// 빈 상태 위젯 (학습 기록이 없을 때)
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.bar_chart_outlined,
+              size: 120,
+              color: Colors.grey.shade300,
+            ),
+            const SizedBox(height: 32),
+            Text(
+              '오늘의 학습 기록이 없습니다',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '학습을 시작하면\n여기에 통계가 표시됩니다',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade500,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 48),
+            ElevatedButton.icon(
+              onPressed: () {
+                // 학습 화면으로 이동 (플래시카드)
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const FlashcardStudyScreen(),
+                  ),
+                ).then((_) => _loadStatistics());
+              },
+              icon: const Icon(Icons.school, size: 28),
+              label: const Text(
+                '학습 시작하기',
+                style: TextStyle(fontSize: 18),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 48,
+                  vertical: 20,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                elevation: 4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () {
+                // 학습 기록 히스토리 화면으로 이동
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const StudyHistoryScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.history),
+              label: const Text('전체 기록 보기'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 48,
+                  vertical: 20,
+                ),
               ),
             ),
           ],

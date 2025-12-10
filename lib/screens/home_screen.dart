@@ -6,6 +6,8 @@ import '../services/database_service.dart';
 import 'package:intl/intl.dart';
 // 플래시카드 학습 화면
 import 'flashcard_study_screen.dart';
+// 단어 추가 화면
+import 'add_word_screen.dart';
 
 /// 홈 화면
 /// 앱의 메인 대시보드 - 오늘의 학습 목표와 통계를 표시
@@ -78,15 +80,17 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('홈'),
       ),
-      body: RefreshIndicator(
-        // 아래로 당겨서 새로고침
-        onRefresh: _loadStatistics,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      body: _totalWords == 0
+          ? _buildEmptyState()
+          : RefreshIndicator(
+              // 아래로 당겨서 새로고침
+              onRefresh: _loadStatistics,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
               // 환영 메시지
               Text(
                 '안녕하세요!',
@@ -161,6 +165,78 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ],
+              ),
+            ],
+          ),
+        ),
+            ),
+    );
+  }
+
+  /// 빈 상태 위젯 (단어가 없을 때)
+  Widget _buildEmptyState() {
+    return RefreshIndicator(
+      onRefresh: _loadStatistics,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Container(
+          height: MediaQuery.of(context).size.height - 200,
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.book_outlined,
+                size: 120,
+                color: Colors.grey.shade300,
+              ),
+              const SizedBox(height: 32),
+              Text(
+                '단어장이 비어있습니다',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '학습할 단어를 추가하고\n영어 실력을 키워보세요!',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey.shade500,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 48),
+              ElevatedButton.icon(
+                onPressed: () {
+                  // 단어 추가 화면으로 이동
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AddWordScreen(),
+                    ),
+                  ).then((_) => _loadStatistics());
+                },
+                icon: const Icon(Icons.add, size: 28),
+                label: const Text(
+                  '첫 단어 추가하기',
+                  style: TextStyle(fontSize: 18),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 48,
+                    vertical: 20,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  elevation: 4,
+                ),
               ),
             ],
           ),
