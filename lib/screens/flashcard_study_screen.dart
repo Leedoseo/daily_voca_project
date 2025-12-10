@@ -104,9 +104,21 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
     setState(() => _isLoading = true);
 
     // 복습 모드면 틀린 단어만, 아니면 전체 단어 조회
-    final words = widget.isReviewMode
+    List<Word> words = widget.isReviewMode
         ? await _dbService.getIncorrectWords()
         : await _dbService.getAllWords();
+
+    // 일반 학습 모드일 때 일일 목표 수만큼 랜덤으로 선택
+    if (!widget.isReviewMode) {
+      final prefs = await SharedPreferences.getInstance();
+      final dailyGoal = prefs.getInt('daily_goal') ?? 50;
+
+      // 전체 단어 수보다 목표가 작으면 랜덤으로 선택
+      if (words.length > dailyGoal) {
+        words.shuffle(); // 리스트를 랜덤하게 섞음
+        words = words.take(dailyGoal).toList(); // 앞에서부터 목표 개수만큼 선택
+      }
+    }
 
     // 화면 업데이트 (setState 호출 시 build 메서드가 다시 실행됨)
     setState(() {
