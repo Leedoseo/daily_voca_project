@@ -10,6 +10,12 @@ import 'services/notification_service.dart';
 import 'package:provider/provider.dart';
 // 테마 프로바이더
 import 'providers/theme_provider.dart';
+// 단어 관리 프로바이더
+import 'providers/word_provider.dart';
+// 통계 관리 프로바이더
+import 'providers/statistics_provider.dart';
+// 설정 관리 프로바이더
+import 'providers/settings_provider.dart';
 
 // 앱의 시작점 (진입점)
 // async: 비동기 함수 - await를 사용할 수 있음
@@ -26,8 +32,17 @@ void main() async {
 
   // 앱 실행 (로딩 화면부터 시작)
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => ThemeProvider(),
+    MultiProvider(
+      providers: [
+        // 테마 관리
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        // 단어 데이터 관리
+        ChangeNotifierProvider(create: (_) => WordProvider()),
+        // 통계 데이터 관리
+        ChangeNotifierProvider(create: (_) => StatisticsProvider()),
+        // 설정 관리
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
+      ],
       child: const MyApp(),
     ),
   );
