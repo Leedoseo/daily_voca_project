@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 // 단어 모델
 import '../models/word.dart';
-// DB서비스
-import '../services/database_service.dart';
+// Provider
+import 'package:provider/provider.dart';
+// 단어 관리 Provider
+import '../providers/word_provider.dart';
 
 /// 단어 수정 화면
 /// 기존 단어 정보를 불러와서 수정
@@ -23,9 +25,6 @@ class _EditWordScreenState extends State<EditWordScreen> {
   late final TextEditingController _wordController;
   late final TextEditingController _meaningController;
   late final TextEditingController _exampleController;
-
-  // DB 서비스
-  final DatabaseService _dbService = DatabaseService.instance;
 
   // 저장 중 여부(중복 저장 방지)
   bool _isSaving = false;
@@ -60,29 +59,28 @@ class _EditWordScreenState extends State<EditWordScreen> {
         example: _exampleController.text.trim(),
       );
 
-      // 데이터베이스에 업데이트
-      await _dbService.updateWord(updatedWord);
+      // Provider를 통해 데이터베이스에 업데이트
+      final wordProvider = Provider.of<WordProvider>(context, listen: false);
+      final success = await wordProvider.updateWord(updatedWord);
 
-      // 저장 성공 메시지 표시
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('단어가 수정되었습니다.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        // 이전 화면으로 돌아가기 (true: 목록 새로고침 필요)
-        Navigator.of(context).pop(true);
-      }
-    } catch (e) {
-      // 저장 실패 시 에러 메시지 표시
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('단어 수정 실패: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('단어가 수정되었습니다.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          // 이전 화면으로 돌아가기 (true: 목록 새로고침 필요)
+          Navigator.of(context).pop(true);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('단어 수정 실패: ${wordProvider.errorMessage}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } finally {
       if (mounted) {

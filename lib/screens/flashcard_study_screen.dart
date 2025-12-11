@@ -16,6 +16,14 @@ import '../models/study_record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 // TTS 서비스
 import '../services/tts_service.dart';
+// Provider
+import 'package:provider/provider.dart';
+// 단어 관리 Provider
+import '../providers/word_provider.dart';
+// 통계 관리 Provider
+import '../providers/statistics_provider.dart';
+// 설정 관리 Provider
+import '../providers/settings_provider.dart';
 
 /// 플래시카드 학습 화면
 /// StatefulWidget: 상태가 변하는 위젯 (단어 목록, 현재 인덱스 등이 변함)
@@ -103,15 +111,26 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
     // 로딩 상태 시작
     setState(() => _isLoading = true);
 
+    // Provider를 통해 단어 가져오기
+    final wordProvider = Provider.of<WordProvider>(context, listen: false);
+
     // 복습 모드면 틀린 단어만, 아니면 전체 단어 조회
     List<Word> words = widget.isReviewMode
-        ? await _dbService.getIncorrectWords()
-        : await _dbService.getAllWords();
+        ? await wordProvider.getIncorrectWords()
+        : wordProvider.words;
+
+    // 단어가 비어있으면 DB에서 다시 로드
+    if (words.isEmpty) {
+      await wordProvider.fetchWordsFromDatabase();
+      words = widget.isReviewMode
+          ? await wordProvider.getIncorrectWords()
+          : wordProvider.words;
+    }
 
     // 일반 학습 모드일 때 일일 목표 수만큼 랜덤으로 선택
-    if (!widget.isReviewMode) {
-      final prefs = await SharedPreferences.getInstance();
-      final dailyGoal = prefs.getInt('daily_goal') ?? 50;
+    if (!widget.isReviewMode && mounted) {
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+      final dailyGoal = settingsProvider.dailyGoal;
 
       // 전체 단어 수보다 목표가 작으면 랜덤으로 선택
       if (words.length > dailyGoal) {
@@ -241,6 +260,11 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> {
 
   /// 모든 카드 학습 완료 시 표시되는 다이얼로그
   void _showCompletionDialog() {
+    // 통계 Provider 업데이트 (학습 완료 시 자동 갱신)
+    if (mounted) {
+      Provider.of<StatisticsProvider>(context, listen: false).loadStatistics();
+    }
+
     // 정답률 계산
     final totalCount = _correctCount + _incorrectCount;
     final accuracyRate = totalCount > 0 ? (_correctCount / totalCount * 100).round() : 0;

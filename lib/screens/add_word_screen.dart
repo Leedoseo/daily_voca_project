@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 // 단어 모델
 import '../models/word.dart';
-// DB서비스
-import '../services/database_service.dart';
+// Provider
+import 'package:provider/provider.dart';
+// 단어 관리 Provider
+import '../providers/word_provider.dart';
 
 /// 단어 추가 화면
 /// 새로운 단어를 입력받아 데이터베이스에 저장
@@ -21,9 +23,6 @@ class _AddWordScreenState extends State<AddWordScreen> {
   final _wordController = TextEditingController();
   final _meaningController = TextEditingController();
   final _exampleController = TextEditingController();
-
-  // DB 서비스
-  final DatabaseService _dbService = DatabaseService.instance;
 
   // 저장 중 여부(중복 저장 방지)
   bool _isSaving = false;
@@ -48,29 +47,28 @@ class _AddWordScreenState extends State<AddWordScreen> {
         example: _exampleController.text.trim(),
       );
 
-      // 데이터 베이스에 저장
-      await _dbService.insertWord(word);
+      // Provider를 통해 데이터베이스에 저장
+      final wordProvider = Provider.of<WordProvider>(context, listen: false);
+      final success = await wordProvider.addWord(word);
 
-      // 저장 성공 메시지 표시
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('단어가 추가되었습니다.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        // 이전 화면으로 돌아가기 (true: 목록 새로고침 필요)
-        Navigator.of(context).pop(true);
-      }
-    } catch (e) {
-      // 저장 실패 시 에러 메시지 표시
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('단어 추가 실패: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('단어가 추가되었습니다.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          // 이전 화면으로 돌아가기 (true: 목록 새로고침 필요)
+          Navigator.of(context).pop(true);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('단어 추가 실패: ${wordProvider.errorMessage}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } finally {
       if (mounted) {

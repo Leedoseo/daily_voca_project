@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'word_list_screen.dart';
 // 플래시카드 학습 화면
 import 'flashcard_study_screen.dart';
-// 데이터베이스 서비스
-import '../services/database_service.dart';
+// Provider
+import 'package:provider/provider.dart';
+// 단어 관리 Provider
+import '../providers/word_provider.dart';
 
 /// 학습 화면
 /// 학습 시작 버튼과 단어 목록 버튼을 제공하는 허브 화면
@@ -19,9 +21,6 @@ class StudyScreen extends StatefulWidget {
 
 /// StudyScreen의 상태 관리 클래스
 class _StudyScreenState extends State<StudyScreen> {
-  // 데이터베이스 서비스
-  final DatabaseService _dbService = DatabaseService.instance;
-
   // 틀린 단어 개수
   int _incorrectWordsCount = 0;
 
@@ -31,22 +30,30 @@ class _StudyScreenState extends State<StudyScreen> {
   @override
   void initState() {
     super.initState();
-    _loadIncorrectWordsCount();
+    // Provider를 사용하여 데이터 로드
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadIncorrectWordsCount();
+    });
   }
 
   /// 틀린 단어 개수 로드
   Future<void> _loadIncorrectWordsCount() async {
     try {
-      final count = await _dbService.getIncorrectWordsCount();
-      setState(() {
-        _incorrectWordsCount = count;
-        _isLoading = false;
-      });
+      final wordProvider = Provider.of<WordProvider>(context, listen: false);
+      final count = await wordProvider.getIncorrectWordsCount();
+      if (mounted) {
+        setState(() {
+          _incorrectWordsCount = count;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _incorrectWordsCount = 0;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _incorrectWordsCount = 0;
+          _isLoading = false;
+        });
+      }
     }
   }
 

@@ -1,7 +1,5 @@
 // Flutter Material Design 위젯
 import 'package:flutter/material.dart';
-// DB 서비스
-import '../services/database_service.dart';
 // 날짜 포맷팅 패키지
 import 'package:intl/intl.dart';
 // 플래시카드 학습 화면
@@ -10,12 +8,17 @@ import 'flashcard_study_screen.dart';
 import 'add_word_screen.dart';
 // 설정 화면
 import 'settings_screen.dart';
-// SharedPreferences
-import 'package:shared_preferences/shared_preferences.dart';
+// Provider
+import 'package:provider/provider.dart';
+// 단어 관리 Provider
+import '../providers/word_provider.dart';
+// 통계 관리 Provider
+import '../providers/statistics_provider.dart';
+// 설정 관리 Provider
+import '../providers/settings_provider.dart';
 
 /// 홈 화면
 /// 앱의 메인 대시보드 - 오늘의 학습 목표와 통계를 표시
-/// StatefulWidget으로 변경: DB에서 데이터를 가져와서 표시하기 위함
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -25,181 +28,160 @@ class HomeScreen extends StatefulWidget {
 
 /// HomeScreen의 상태 관리 클래스
 class _HomeScreenState extends State<HomeScreen> {
-  // DB 서비스 인스턴스
-  final DatabaseService _dbService = DatabaseService.instance;
-
-  // 로딩 중 여부
-  bool _isLoading = true;
-
-  // 통계 데이터
-  int _totalWords = 0; // 전체 단어 수
-  int _todayStudied = 0; // 오늘 학습한 단어 수
-  int _todayCorrect = 0; // 오늘 맞힌 단어 수
-  double _todayAccuracy = 0.0; // 오늘 정확도
-  int _dailyGoal = 50; // 일일 학습 목표
-
   /// 위젯이 생성될 때 한 번만 호출
   @override
   void initState() {
     super.initState();
-    // 통계 로드
-    _loadStatistics();
+    // Provider를 사용하여 데이터 로드
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+    });
   }
 
-  /// 대시보드 통계를 데이터베이스에서 가져오기
-  Future<void> _loadStatistics() async {
-    setState(() => _isLoading = true);
+  /// 데이터 로드
+  Future<void> _loadData() async {
+    final wordProvider = Provider.of<WordProvider>(context, listen: false);
+    final statsProvider = Provider.of<StatisticsProvider>(context, listen: false);
+    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
 
-    // 전체 단어 수 조회
-    final totalWords = await _dbService.getWordCount();
-
-    // 오늘 날짜
-    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-
-    // 오늘의 학습 통계 조회 (고유 단어 기준)
-    final stats = await _dbService.getStudyStatisticsByDate(today);
-
-    // 통계 계산
-    final todayStudied = stats['totalStudied'] ?? 0;
-    final todayCorrect = stats['correctCount'] ?? 0;
-    final todayAccuracy =
-        todayStudied > 0 ? (todayCorrect / todayStudied * 100) : 0.0;
-
-    // 학습 목표 로드
-    final prefs = await SharedPreferences.getInstance();
-    final dailyGoal = prefs.getInt('daily_goal') ?? 50;
-
-    setState(() {
-      _totalWords = totalWords;
-      _todayStudied = todayStudied;
-      _todayCorrect = todayCorrect;
-      _todayAccuracy = todayAccuracy;
-      _dailyGoal = dailyGoal;
-      _isLoading = false;
-    });
+    await Future.wait([
+      wordProvider.fetchWordsFromDatabase(),
+      statsProvider.loadStatistics(),
+      settingsProvider.loadSettings(),
+    ]);
   }
 
   @override
   Widget build(BuildContext context) {
-    // 로딩 중일 때 로딩 인디케이터 표시
-    if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    return Consumer3<WordProvider, StatisticsProvider, SettingsProvider>(
+      builder: (context, wordProvider, statsProvider, settingsProvider, child) {
+        // 로딩 중일 때 로딩 인디케이터 표시
+        if (statsProvider.isLoading || settingsProvider.isLoading) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('홈'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const SettingsScreen(),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: _totalWords == 0
-          ? _buildEmptyState()
-          : RefreshIndicator(
-              // 아래로 당겨서 새로고침
-              onRefresh: _loadStatistics,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-              // 환영 메시지
-              Text(
-                '안녕하세요!',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                DateFormat('yyyy년 MM월 dd일 EEEE', 'ko_KR')
-                    .format(DateTime.now()),
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-              const SizedBox(height: 32),
+        final totalWords = wordProvider.words.length;
+        final todayStudied = statsProvider.totalStudied;
+        final todayCorrect = statsProvider.correctCount;
+        final todayAccuracy = statsProvider.accuracy;
+        final dailyGoal = settingsProvider.dailyGoal;
 
-              // 오늘의 학습 진행률 카드
-              _buildProgressCard(),
-              const SizedBox(height: 16),
-
-              // 빠른 학습 시작 버튼
-              _buildQuickStartButton(context),
-              const SizedBox(height: 24),
-
-              // 오늘의 통계 섹션
-              Text(
-                '오늘의 학습',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 16),
-
-              // 통계 카드들 (2x2 그리드)
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      '학습한 단어',
-                      '$_todayStudied',
-                      Icons.book_outlined,
-                      Colors.blue,
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('홈'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.settings),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SettingsScreen(),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      '정확도',
-                      '${_todayAccuracy.toStringAsFixed(0)}%',
-                      Icons.check_circle_outline,
-                      Colors.green,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      '맞힌 단어',
-                      '$_todayCorrect',
-                      Icons.thumb_up_outlined,
-                      Colors.teal,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      '전체 단어',
-                      '$_totalWords',
-                      Icons.library_books_outlined,
-                      Colors.orange,
-                    ),
-                  ),
-                ],
+                  );
+                },
               ),
             ],
           ),
-        ),
-            ),
+          body: totalWords == 0
+              ? _buildEmptyState()
+              : RefreshIndicator(
+                  // 아래로 당겨서 새로고침
+                  onRefresh: _loadData,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // 환영 메시지
+                        Text(
+                          '안녕하세요!',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          DateFormat('yyyy년 MM월 dd일 EEEE', 'ko_KR')
+                              .format(DateTime.now()),
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+
+                        // 오늘의 학습 진행률 카드
+                        _buildProgressCard(todayStudied, dailyGoal),
+                        const SizedBox(height: 16),
+
+                        // 빠른 학습 시작 버튼
+                        _buildQuickStartButton(context),
+                        const SizedBox(height: 24),
+
+                        // 오늘의 통계 섹션
+                        Text(
+                          '오늘의 학습',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 16),
+
+                        // 통계 카드들 (2x2 그리드)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildStatCard(
+                                '학습한 단어',
+                                '$todayStudied',
+                                Icons.book_outlined,
+                                Colors.blue,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildStatCard(
+                                '정확도',
+                                '${todayAccuracy.toStringAsFixed(0)}%',
+                                Icons.check_circle_outline,
+                                Colors.green,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildStatCard(
+                                '맞힌 단어',
+                                '$todayCorrect',
+                                Icons.thumb_up_outlined,
+                                Colors.teal,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildStatCard(
+                                '전체 단어',
+                                '$totalWords',
+                                Icons.library_books_outlined,
+                                Colors.orange,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+        );
+      },
     );
   }
 
   /// 빈 상태 위젯 (단어가 없을 때)
   Widget _buildEmptyState() {
     return RefreshIndicator(
-      onRefresh: _loadStatistics,
+      onRefresh: _loadData,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         child: Container(
@@ -241,7 +223,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     MaterialPageRoute(
                       builder: (context) => const AddWordScreen(),
                     ),
-                  ).then((_) => _loadStatistics());
+                  ).then((_) => _loadData());
                 },
                 icon: const Icon(Icons.add, size: 28),
                 label: const Text(
@@ -269,10 +251,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// 학습 진행률 카드 위젯
-  Widget _buildProgressCard() {
-    // 오늘의 목표: 사용자 설정 값 사용
-    final goal = _dailyGoal;
-    final progress = goal > 0 ? _todayStudied / goal : 0.0;
+  Widget _buildProgressCard(int todayStudied, int dailyGoal) {
+    final progress = dailyGoal > 0 ? todayStudied / dailyGoal : 0.0;
 
     return Card(
       elevation: 4,
@@ -303,15 +283,15 @@ class _HomeScreenState extends State<HomeScreen> {
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: LinearProgressIndicator(
-                value: progress,
+                value: progress > 1.0 ? 1.0 : progress,
                 minHeight: 12,
-                backgroundColor: Colors.white.withOpacity(0.3),
+                backgroundColor: Colors.white.withValues(alpha: 0.3),
                 valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
               ),
             ),
             const SizedBox(height: 12),
             Text(
-              '$_todayStudied / $goal 단어 완료',
+              '$todayStudied / $dailyGoal 단어 완료',
               style: const TextStyle(
                 fontSize: 16,
                 color: Colors.white,
@@ -337,7 +317,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ).then((_) {
             // 학습 화면에서 돌아왔을 때 통계 새로고침
-            _loadStatistics();
+            _loadData();
           });
         },
         icon: const Icon(Icons.play_arrow, size: 28),
