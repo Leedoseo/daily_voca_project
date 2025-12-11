@@ -2,8 +2,10 @@
 import 'package:flutter/material.dart';
 // 단어 모델
 import '../models/word.dart';
-// 데이터베이스 서비스
-import '../services/database_service.dart';
+// Provider
+import 'package:provider/provider.dart';
+// 단어 관리 Provider
+import '../providers/word_provider.dart';
 // 단어 상세 화면
 import 'word_detail_screen.dart';
 // 단어 추가 화면 추가
@@ -20,17 +22,8 @@ class WordListScreen extends StatefulWidget {
 
 /// WordListScreen의 상태 관리 클래스
 class _WordListScreenState extends State<WordListScreen> {
-  // 데이터베이스 서비스
-  final DatabaseService _dbService = DatabaseService.instance;
-
-  // 전체 단어 목록
-  List<Word> _words = [];
-
   // 검색 필터링된 단어 목록 (화면에 실제로 표시되는 목록)
   List<Word> _filteredWords = [];
-
-  // 로딩 중 여부
-  bool _isLoading = true;
 
   // 검색 입력 필드의 텍스트를 제어하는 컨트롤러
   final TextEditingController _searchController = TextEditingController();
@@ -38,32 +31,33 @@ class _WordListScreenState extends State<WordListScreen> {
   @override
   void initState() {
     super.initState();
-    _loadWords();
+    // Provider를 사용하여 데이터 로드
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadWords();
+    });
   }
 
-  /// 데이터베이스에서 모든 단어 로드
+  /// 단어 목록 로드
   Future<void> _loadWords() async {
-    setState(() => _isLoading = true);
-    final words = await _dbService.getAllWords();
-    setState(() {
-      _words = words; // 전체 목록
-      _filteredWords = words; // 초기에는 필터링 안 함
-      _isLoading = false;
-    });
+    final wordProvider = Provider.of<WordProvider>(context, listen: false);
+    await wordProvider.fetchWordsFromDatabase();
+    // 검색어가 있으면 필터링, 없으면 전체 목록
+    _filterWords(_searchController.text);
   }
 
   /// 검색어로 단어 필터링
   /// query: 사용자가 입력한 검색어
   void _filterWords(String query) {
+    final wordProvider = Provider.of<WordProvider>(context, listen: false);
     setState(() {
       if (query.isEmpty) {
         // 검색어가 없으면 전체 목록 표시
-        _filteredWords = _words;
+        _filteredWords = wordProvider.words;
       } else {
         // where(): 조건에 맞는 요소만 필터링
         // toLowerCase(): 대소문자 구분 없이 검색
         // contains(): 문자열 포함 여부 확인
-        _filteredWords = _words
+        _filteredWords = wordProvider.words
             .where((word) =>
                 word.word.toLowerCase().contains(query.toLowerCase()) ||
                 word.meaning.toLowerCase().contains(query.toLowerCase()))
@@ -72,7 +66,7 @@ class _WordListScreenState extends State<WordListScreen> {
     });
   }
 
-  /// 단어 삭제 처리 (새로 추가)
+  /// 단어 삭제 처리
   Future<void> _deleteWord(Word word) async {
     // 삭제 확인 다이얼로그 표시
     final confirmed = await showDialog<bool>(
@@ -95,23 +89,23 @@ class _WordListScreenState extends State<WordListScreen> {
 
     // 사용자가 삭제 확인한 경우
     if (confirmed == true) {
-      try {
-        await _dbService.deleteWord(word.id!);
-        if (mounted) {
+      final wordProvider = Provider.of<WordProvider>(context, listen: false);
+      final success = await wordProvider.deleteWord(word.id!);
+
+      if (mounted) {
+        if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('단어가 삭제되었습니다'),
               backgroundColor: Colors.green,
             ),
           );
-          // 목록 새로고침
-          _loadWords();
-        }
-      } catch (e) {
-        if (mounted) {
+          // 필터링된 목록 업데이트
+          _filterWords(_searchController.text);
+        } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('삭제 실패: $e'),
+              content: Text('삭제 실패: ${wordProvider.errorMessage}'),
               backgroundColor: Colors.red,
             ),
           );
@@ -122,164 +116,167 @@ class _WordListScreenState extends State<WordListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('단어 목록'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(60),
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              controller: _searchController,
-              onChanged: _filterWords,
-              decoration: InputDecoration(
-                hintText: '단어 검색...',
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
+    return Consumer<WordProvider>(
+      builder: (context, wordProvider, child) {
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('단어 목록'),
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(60),
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: _filterWords,
+                  decoration: InputDecoration(
+                    hintText: '단어 검색...',
+                    prefixIcon: const Icon(Icons.search),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ),
-      // FloatingActionButton 추가
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          // 단어 추가 화면으로 이동
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const AddWordScreen(),
-            ),
-          );
-          // 단어가 추가되었으면 목록 새로고침
-          if (result == true) {
-            _loadWords();
-          }
-        },
-        child: const Icon(Icons.add),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _filteredWords.isEmpty
-              ? _buildEmptyState()
-              : ListView.builder(
-                  itemCount: _filteredWords.length,
-                  itemBuilder: (context, index) {
-                    final word = _filteredWords[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      // Dismissible로 감싸서 스와이프 삭제 기능 추가
-                      child: Dismissible(
-                        key: Key(word.id.toString()),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 20),
-                          color: Colors.red,
-                          child: const Icon(
-                            Icons.delete,
-                            color: Colors.white,
-                            size: 32,
-                          ),
-                        ),
-                        confirmDismiss: (direction) async {
-                          // 스와이프 시 삭제 확인 다이얼로그 표시
-                          return await showDialog<bool>(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text('단어 삭제'),
-                              content: Text('\'${word.word}\'를 삭제하시겠습니까?'),
-                              actions: [
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.of(context).pop(false),
-                                  child: const Text('취소'),
-                                ),
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.of(context).pop(true),
-                                  child: const Text('삭제',
-                                      style: TextStyle(color: Colors.red)),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                        onDismissed: (direction) async {
-                          // 삭제 실행
-                          try {
-                            await _dbService.deleteWord(word.id!);
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('단어가 삭제되었습니다'),
-                                  backgroundColor: Colors.green,
-                                ),
-                              );
-                              _loadWords();
-                            }
-                          } catch (e) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('삭제 실패: $e'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                              _loadWords();
-                            }
-                          }
-                        },
-                        child: ListTile(
-                          title: Text(
-                            word.word,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          subtitle: Text(
-                            word.meaning,
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // 삭제 버튼 추가
-                              IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () => _deleteWord(word),
-                              ),
-                              const Icon(Icons.arrow_forward_ios, size: 16),
-                            ],
-                          ),
-                          onTap: () async {
-                            // 상세 화면으로 이동
-                            final result = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    WordDetailScreen(word: word),
-                              ),
-                            );
-                            // 수정 또는 삭제되었으면 목록 새로고침
-                            if (result == true) {
-                              _loadWords();
-                            }
-                          },
-                        ),
-                      ),
-                    );
-                  },
+          // FloatingActionButton 추가
+          floatingActionButton: FloatingActionButton(
+            onPressed: () async {
+              // 단어 추가 화면으로 이동
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AddWordScreen(),
                 ),
+              );
+              // 단어가 추가되었으면 목록 새로고침
+              if (result == true && mounted) {
+                _loadWords();
+              }
+            },
+            child: const Icon(Icons.add),
+          ),
+          body: wordProvider.isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _filteredWords.isEmpty
+                  ? _buildEmptyState()
+                  : ListView.builder(
+                      itemCount: _filteredWords.length,
+                      itemBuilder: (context, index) {
+                        final word = _filteredWords[index];
+                        return Card(
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          // Dismissible로 감싸서 스와이프 삭제 기능 추가
+                          child: Dismissible(
+                            key: Key(word.id.toString()),
+                            direction: DismissDirection.endToStart,
+                            background: Container(
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.only(right: 20),
+                              color: Colors.red,
+                              child: const Icon(
+                                Icons.delete,
+                                color: Colors.white,
+                                size: 32,
+                              ),
+                            ),
+                            confirmDismiss: (direction) async {
+                              // 스와이프 시 삭제 확인 다이얼로그 표시
+                              return await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('단어 삭제'),
+                                  content: Text('\'${word.word}\'를 삭제하시겠습니까?'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(false),
+                                      child: const Text('취소'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(true),
+                                      child: const Text('삭제',
+                                          style: TextStyle(color: Colors.red)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                            onDismissed: (direction) async {
+                              // 삭제 실행
+                              final provider = Provider.of<WordProvider>(context, listen: false);
+                              final success = await provider.deleteWord(word.id!);
+
+                              if (mounted) {
+                                if (success) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('단어가 삭제되었습니다'),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                  _filterWords(_searchController.text);
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('삭제 실패: ${provider.errorMessage}'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            child: ListTile(
+                              title: Text(
+                                word.word,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              subtitle: Text(
+                                word.meaning,
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // 삭제 버튼 추가
+                                  IconButton(
+                                    icon: const Icon(Icons.delete, color: Colors.red),
+                                    onPressed: () => _deleteWord(word),
+                                  ),
+                                  const Icon(Icons.arrow_forward_ios, size: 16),
+                                ],
+                              ),
+                              onTap: () async {
+                                // 상세 화면으로 이동
+                                final result = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        WordDetailScreen(word: word),
+                                  ),
+                                );
+                                // 수정 또는 삭제되었으면 목록 새로고침
+                                if (result == true && mounted) {
+                                  _loadWords();
+                                }
+                              },
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+        );
+      },
     );
   }
 

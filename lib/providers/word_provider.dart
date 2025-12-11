@@ -138,4 +138,102 @@ class WordProvider with ChangeNotifier {
     _errorMessage = '';
     notifyListeners();
   }
+
+  // ============ CRUD 메서드 ============
+
+  /// 단어 개수 조회
+  Future<int> getWordCount() async {
+    try {
+      return await _dbService.getWordCount();
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  /// ID로 단어 조회
+  Future<Word?> getWordById(int id) async {
+    try {
+      return await _dbService.getWord(id);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// 단어 추가
+  Future<bool> addWord(Word word) async {
+    try {
+      await _dbService.insertWord(word);
+      await fetchWordsFromDatabase(); // 목록 갱신
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _hasError = true;
+      _errorMessage = '단어 추가에 실패했습니다: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// 단어 수정
+  Future<bool> updateWord(Word word) async {
+    try {
+      await _dbService.updateWord(word);
+      await fetchWordsFromDatabase(); // 목록 갱신
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _hasError = true;
+      _errorMessage = '단어 수정에 실패했습니다: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// 단어 삭제
+  Future<bool> deleteWord(int id) async {
+    try {
+      await _dbService.deleteWord(id);
+      await fetchWordsFromDatabase(); // 목록 갱신
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _hasError = true;
+      _errorMessage = '단어 삭제에 실패했습니다: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// 단어 검색 (로컬에서 필터링)
+  Future<List<Word>> searchWords(String query) async {
+    try {
+      final allWords = await _dbService.getAllWords();
+      if (query.isEmpty) return allWords;
+
+      return allWords.where((word) {
+        return word.word.toLowerCase().contains(query.toLowerCase()) ||
+               word.meaning.toLowerCase().contains(query.toLowerCase());
+      }).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// 틀린 단어 목록 조회
+  Future<List<Word>> getIncorrectWords() async {
+    try {
+      return await _dbService.getIncorrectWords();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// 틀린 단어 개수 조회
+  Future<int> getIncorrectWordsCount() async {
+    try {
+      return await _dbService.getIncorrectWordsCount();
+    } catch (e) {
+      return 0;
+    }
+  }
 }

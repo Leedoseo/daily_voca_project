@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 // 단어 모델
 import '../models/word.dart';
-// DB 서비스
-import '../services/database_service.dart';
+// Provider
+import 'package:provider/provider.dart';
+// 단어 관리 Provider
+import '../providers/word_provider.dart';
 // 단어 수정 화면
 import 'edit_word_screen.dart';
 
@@ -25,9 +27,6 @@ class WordDetailScreen extends StatefulWidget {
 class _WordDetailScreenState extends State<WordDetailScreen> {
   // TTS 엔진 인스턴스
   final FlutterTts _flutterTts = FlutterTts();
-
-  // DB 서비스
-  final DatabaseService _dbService = DatabaseService.instance;
 
   // 현재 발음 재생 중인지 여부
   bool _isSpeaking = false;
@@ -102,10 +101,12 @@ class _WordDetailScreenState extends State<WordDetailScreen> {
     );
 
     // 사용자가 삭제 확인한 경우
-    if (confirmed == true) {
-      try {
-        await _dbService.deleteWord(widget.word.id!);
-        if (mounted) {
+    if (confirmed == true && mounted) {
+      final wordProvider = Provider.of<WordProvider>(context, listen: false);
+      final success = await wordProvider.deleteWord(widget.word.id!);
+
+      if (mounted) {
+        if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('단어가 삭제되었습니다'),
@@ -114,12 +115,10 @@ class _WordDetailScreenState extends State<WordDetailScreen> {
           );
           // 이전 화면으로 돌아가기 (true: 목록 새로고침 필요)
           Navigator.of(context).pop(true);
-        }
-      } catch (e) {
-        if (mounted) {
+        } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('삭제 실패: $e'),
+              content: Text('삭제 실패: ${wordProvider.errorMessage}'),
               backgroundColor: Colors.red,
             ),
           );
