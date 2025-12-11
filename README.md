@@ -27,7 +27,7 @@
 
 ## 스크린샷
 
-<div align="center">
+<div align="left">
 
 ### 홈 화면
 <img src="screenshots/daily_voca_home1.png" width="250"/>
