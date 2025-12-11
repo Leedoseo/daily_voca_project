@@ -25,6 +25,24 @@
 - **학습 알림**: 매일 정해진 시간에 학습 리마인더
 - **일일 목표 설정**: 개인의 학습 속도에 맞춘 목표 설정
 
+## 📱 스크린샷
+
+<div align="center">
+
+### 홈 화면
+<img src="screenshots/daily_voca_home1.png" width="250"/>
+
+### 학습 화면
+<img src="screenshots/daily_voca_study1.png" width="250"/> <img src="screenshots/daily_voca_study2.png" width="250"/> <img src="screenshots/daily_voca_study3.png" width="250"/>
+
+### 통계 화면
+<img src="screenshots/daily_voca_stats1.png" width="250"/> <img src="screenshots/daily_voca_stats2.png" width="250"/> <img src="screenshots/daily_voca_stats3.png" width="250"/> <img src="screenshots/daily_voca_stats4.png" width="250"/>
+
+### 설정 화면
+<img src="screenshots/daily_voca_settings1.png" width="250"/>
+
+</div>
+
 ## 기술 스택
 
 ### 프레임워크 & 언어
