@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import '../services/notification_service.dart';
 import '../providers/theme_provider.dart';
+import '../providers/settings_provider.dart';
 
 /// 설정 화면
 /// 알림 설정, 테마, 학습 목표 등을 관리합니다
@@ -16,57 +16,25 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final NotificationService _notificationService = NotificationService.instance;
 
-  // 알림 설정 상태
-  bool _notificationsEnabled = false;
-  TimeOfDay _notificationTime = const TimeOfDay(hour: 9, minute: 0);
-
-  // 학습 목표 설정
-  int _dailyGoal = 50;
-
-  bool _isLoading = true;
-
   @override
   void initState() {
     super.initState();
-    _loadSettings();
-  }
-
-  /// 저장된 설정 로드
-  Future<void> _loadSettings() async {
-    setState(() => _isLoading = true);
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final enabled = prefs.getBool('notifications_enabled') ?? false;
-      final hour = prefs.getInt('notification_hour') ?? 9;
-      final minute = prefs.getInt('notification_minute') ?? 0;
-      final goal = prefs.getInt('daily_goal') ?? 50;
-
-      setState(() {
-        _notificationsEnabled = enabled;
-        _notificationTime = TimeOfDay(hour: hour, minute: minute);
-        _dailyGoal = goal;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-    }
+    // Provider를 사용하여 설정 로드
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<SettingsProvider>(context, listen: false).loadSettings();
+    });
   }
 
   /// 학습 목표 저장
   Future<void> _saveDailyGoal(int goal) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('daily_goal', goal);
-
-      setState(() {
-        _dailyGoal = goal;
-      });
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+      await settingsProvider.setDailyGoal(goal);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('일일 학습 목표가 $_dailyGoal개로 설정되었습니다'),
+            content: Text('일일 학습 목표가 $goal개로 설정되었습니다'),
             backgroundColor: Colors.green,
           ),
         );
@@ -85,7 +53,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// 학습 목표 설정 다이얼로그
   Future<void> _showGoalDialog() async {
-    final controller = TextEditingController(text: _dailyGoal.toString());
+    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+    final controller = TextEditingController(text: settingsProvider.dailyGoal.toString());
 
     await showDialog(
       context: context,
@@ -165,17 +134,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     TimeOfDay? time,
   }) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
 
-      await prefs.setBool('notifications_enabled', enabled);
+      await settingsProvider.setNotificationsEnabled(enabled);
 
       if (time != null) {
-        await prefs.setInt('notification_hour', time.hour);
-        await prefs.setInt('notification_minute', time.minute);
+        await settingsProvider.setNotificationTime(time.hour, time.minute);
       }
 
       if (enabled) {
-        final timeToUse = time ?? _notificationTime;
+        final timeToUse = time ?? TimeOfDay(
+          hour: settingsProvider.notificationHour,
+          minute: settingsProvider.notificationMinute,
+        );
         await _notificationService.scheduleDailyReminder(
           hour: timeToUse.hour,
           minute: timeToUse.minute,
@@ -217,9 +188,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// 알림 시간 선택
   Future<void> _pickNotificationTime() async {
+    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+    final currentTime = TimeOfDay(
+      hour: settingsProvider.notificationHour,
+      minute: settingsProvider.notificationMinute,
+    );
+
     final picked = await showTimePicker(
       context: context,
-      initialTime: _notificationTime,
+      initialTime: currentTime,
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false),
@@ -229,15 +206,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     if (picked != null) {
-      setState(() {
-        _notificationTime = picked;
-      });
-
-      if (_notificationsEnabled) {
+      if (settingsProvider.notificationsEnabled) {
         await _saveNotificationSettings(
           enabled: true,
           time: picked,
         );
+      } else {
+        await settingsProvider.setNotificationTime(picked.hour, picked.minute);
       }
     }
   }
@@ -261,142 +236,142 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
+    return Consumer<SettingsProvider>(
+      builder: (context, settingsProvider, child) {
+        if (settingsProvider.isLoading) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('설정'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16.0),
-        children: [
-          // 일반 설정 섹션
-          Text(
-            '일반',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('설정'),
           ),
-          const SizedBox(height: 16),
-
-          // 다크 모드 토글
-          Card(
-            child: SwitchListTile(
-              title: const Text('다크 모드'),
-              subtitle: const Text('어두운 테마로 전환합니다'),
-              value: Provider.of<ThemeProvider>(context).isDarkMode,
-              onChanged: (value) {
-                Provider.of<ThemeProvider>(context, listen: false).toggleTheme();
-              },
-              secondary: const Icon(Icons.dark_mode),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // 학습 목표 설정
-          Card(
-            child: ListTile(
-              title: const Text('일일 학습 목표'),
-              subtitle: Text('$_dailyGoal개'),
-              leading: const Icon(Icons.flag),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _showGoalDialog,
-            ),
-          ),
-
-          const SizedBox(height: 32),
-
-          // 알림 설정 섹션
-          Text(
-            '알림',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
-          const SizedBox(height: 16),
-
-          // 알림 활성화/비활성화
-          Card(
-            child: SwitchListTile(
-              title: const Text('일일 학습 알림'),
-              subtitle: const Text('매일 정해진 시간에 학습을 알려드립니다'),
-              value: _notificationsEnabled,
-              onChanged: (value) async {
-                setState(() {
-                  _notificationsEnabled = value;
-                });
-
-                await _saveNotificationSettings(enabled: value);
-              },
-              secondary: const Icon(Icons.notifications_active),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // 알림 시간 설정
-          Card(
-            child: ListTile(
-              title: const Text('알림 시간'),
-              subtitle: Text(
-                '${_notificationTime.hour}:${_notificationTime.minute.toString().padLeft(2, '0')}',
-                style: const TextStyle(fontSize: 16),
+          body: ListView(
+            padding: const EdgeInsets.all(16.0),
+            children: [
+              // 일반 설정 섹션
+              Text(
+                '일반',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
-              leading: const Icon(Icons.access_time),
-              trailing: const Icon(Icons.chevron_right),
-              enabled: _notificationsEnabled,
-              onTap: _notificationsEnabled ? _pickNotificationTime : null,
-            ),
-          ),
+              const SizedBox(height: 16),
 
-          const SizedBox(height: 12),
-
-          // 알림 테스트 버튼
-          Card(
-            child: ListTile(
-              title: const Text('알림 테스트'),
-              subtitle: const Text('지금 바로 테스트 알림을 받아보세요'),
-              leading: const Icon(Icons.notification_add),
-              trailing: const Icon(Icons.send),
-              onTap: _testNotification,
-            ),
-          ),
-
-          const SizedBox(height: 32),
-
-          // 앱 정보 섹션
-          Text(
-            '정보',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
+              // 다크 모드 토글
+              Card(
+                child: SwitchListTile(
+                  title: const Text('다크 모드'),
+                  subtitle: const Text('어두운 테마로 전환합니다'),
+                  value: Provider.of<ThemeProvider>(context).isDarkMode,
+                  onChanged: (value) {
+                    Provider.of<ThemeProvider>(context, listen: false).toggleTheme();
+                  },
+                  secondary: const Icon(Icons.dark_mode),
                 ),
-          ),
-          const SizedBox(height: 16),
+              ),
 
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  title: const Text('버전'),
-                  subtitle: const Text('1.0.0'),
-                  leading: const Icon(Icons.info_outline),
+              const SizedBox(height: 12),
+
+              // 학습 목표 설정
+              Card(
+                child: ListTile(
+                  title: const Text('일일 학습 목표'),
+                  subtitle: Text('${settingsProvider.dailyGoal}개'),
+                  leading: const Icon(Icons.flag),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: _showGoalDialog,
                 ),
-                const Divider(height: 1),
-                ListTile(
-                  title: const Text('개발자'),
-                  subtitle: const Text('Daily Voca Team'),
-                  leading: const Icon(Icons.code),
+              ),
+
+              const SizedBox(height: 32),
+
+              // 알림 설정 섹션
+              Text(
+                '알림',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 16),
+
+              // 알림 활성화/비활성화
+              Card(
+                child: SwitchListTile(
+                  title: const Text('일일 학습 알림'),
+                  subtitle: const Text('매일 정해진 시간에 학습을 알려드립니다'),
+                  value: settingsProvider.notificationsEnabled,
+                  onChanged: (value) async {
+                    await _saveNotificationSettings(enabled: value);
+                  },
+                  secondary: const Icon(Icons.notifications_active),
                 ),
-              ],
-            ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // 알림 시간 설정
+              Card(
+                child: ListTile(
+                  title: const Text('알림 시간'),
+                  subtitle: Text(
+                    '${settingsProvider.notificationHour}:${settingsProvider.notificationMinute.toString().padLeft(2, '0')}',
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  leading: const Icon(Icons.access_time),
+                  trailing: const Icon(Icons.chevron_right),
+                  enabled: settingsProvider.notificationsEnabled,
+                  onTap: settingsProvider.notificationsEnabled ? _pickNotificationTime : null,
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // 알림 테스트 버튼
+              Card(
+                child: ListTile(
+                  title: const Text('알림 테스트'),
+                  subtitle: const Text('지금 바로 테스트 알림을 받아보세요'),
+                  leading: const Icon(Icons.notification_add),
+                  trailing: const Icon(Icons.send),
+                  onTap: _testNotification,
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              // 앱 정보 섹션
+              Text(
+                '정보',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 16),
+
+              Card(
+                child: Column(
+                  children: [
+                    ListTile(
+                      title: const Text('버전'),
+                      subtitle: const Text('1.0.0'),
+                      leading: const Icon(Icons.info_outline),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      title: const Text('개발자'),
+                      subtitle: const Text('Daily Voca Team'),
+                      leading: const Icon(Icons.code),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

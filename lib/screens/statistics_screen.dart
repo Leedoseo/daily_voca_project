@@ -1,7 +1,5 @@
 // Flutter Material Design 위젯
 import 'package:flutter/material.dart';
-// DB 서비스
-import '../services/database_service.dart';
 // 날짜 포맷팅 패키지
 import 'package:intl/intl.dart';
 // 학습 기록 상세 화면
@@ -12,6 +10,10 @@ import 'study_history_screen.dart';
 import 'flashcard_study_screen.dart';
 // 차트 라이브러리
 import 'package:fl_chart/fl_chart.dart';
+// Provider
+import 'package:provider/provider.dart';
+// 통계 관리 Provider
+import '../providers/statistics_provider.dart';
 
 /// 통계 화면
 /// 학습 통계를 보여주는 화면 (차트 포함)
@@ -24,28 +26,8 @@ class StatisticsScreen extends StatefulWidget {
 
 /// StatisticsScreen의 상태 관리 클래스
 class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerProviderStateMixin {
-  // DB 서비스 인스턴스
-  final DatabaseService _dbService = DatabaseService.instance;
-
   // 탭 컨트롤러
   late TabController _tabController;
-
-  // 로딩 중 여부
-  bool _isLoading = true;
-
-  // 오늘 통계 데이터
-  int _totalStudied = 0;
-  int _correctCount = 0;
-  int _incorrectCount = 0;
-  double _accuracy = 0.0;
-
-  // 주간/월간 통계 데이터
-  List<Map<String, dynamic>> _weeklyStats = [];
-  List<Map<String, dynamic>> _monthlyStats = [];
-
-  // 단어별 통계
-  List<Map<String, dynamic>> _mostIncorrectWords = [];
-  List<Map<String, dynamic>> _mostCorrectWords = [];
 
   /// 위젯이 생성될 때 한 번만 호출
   @override
@@ -53,7 +35,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     // 통계 로드
-    _loadStatistics();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<StatisticsProvider>(context, listen: false).loadStatistics();
+    });
   }
 
   @override
@@ -62,99 +46,47 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
     super.dispose();
   }
 
-  /// 통계를 데이터베이스에서 가져오기
-  Future<void> _loadStatistics() async {
-    setState(() => _isLoading = true);
-
-    try {
-      // 오늘 날짜
-      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-
-      // 오늘의 학습 통계 조회
-      final todayStats = await _dbService.getStudyStatisticsByDate(today);
-
-      // 주간 통계 (최근 7일)
-      final weeklyStats = await _dbService.getRecentDaysStatistics(7);
-
-      // 월간 통계 (최근 30일)
-      final monthlyStats = await _dbService.getRecentDaysStatistics(30);
-
-      // 단어별 통계
-      final mostIncorrectWords = await _dbService.getMostIncorrectWords(5);
-      final mostCorrectWords = await _dbService.getMostCorrectWords(5);
-
-      // 통계 계산
-      final totalStudied = todayStats['totalStudied'] ?? 0;
-      final correctCount = todayStats['correctCount'] ?? 0;
-      final incorrectCount = todayStats['incorrectCount'] ?? 0;
-      final accuracy = totalStudied > 0
-          ? (correctCount / totalStudied * 100)
-          : 0.0;
-
-      setState(() {
-        _totalStudied = totalStudied;
-        _correctCount = correctCount;
-        _incorrectCount = incorrectCount;
-        _accuracy = accuracy;
-        _weeklyStats = weeklyStats;
-        _monthlyStats = monthlyStats;
-        _mostIncorrectWords = mostIncorrectWords;
-        _mostCorrectWords = mostCorrectWords;
-        _isLoading = false;
-      });
-    } catch (e) {
-      // 에러 발생 시 기본값으로 설정
-      setState(() {
-        _totalStudied = 0;
-        _correctCount = 0;
-        _incorrectCount = 0;
-        _accuracy = 0.0;
-        _weeklyStats = [];
-        _monthlyStats = [];
-        _mostIncorrectWords = [];
-        _mostCorrectWords = [];
-        _isLoading = false;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    // 로딩 중일 때 로딩 인디케이터 표시
-    if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    return Consumer<StatisticsProvider>(
+      builder: (context, statsProvider, child) {
+        // 로딩 중일 때 로딩 인디케이터 표시
+        if (statsProvider.isLoading) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('통계'),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: '오늘', icon: Icon(Icons.today)),
-            Tab(text: '주간', icon: Icon(Icons.view_week)),
-            Tab(text: '월간', icon: Icon(Icons.calendar_month)),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          // 오늘 탭
-          _buildTodayTab(),
-          // 주간 탭
-          _buildWeeklyTab(),
-          // 월간 탭
-          _buildMonthlyTab(),
-        ],
-      ),
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('통계'),
+            bottom: TabBar(
+              controller: _tabController,
+              tabs: const [
+                Tab(text: '오늘', icon: Icon(Icons.today)),
+                Tab(text: '주간', icon: Icon(Icons.view_week)),
+                Tab(text: '월간', icon: Icon(Icons.calendar_month)),
+              ],
+            ),
+          ),
+          body: TabBarView(
+            controller: _tabController,
+            children: [
+              // 오늘 탭
+              _buildTodayTab(statsProvider),
+              // 주간 탭
+              _buildWeeklyTab(statsProvider),
+              // 월간 탭
+              _buildMonthlyTab(statsProvider),
+            ],
+          ),
+        );
+      },
     );
   }
 
   /// 오늘 탭
-  Widget _buildTodayTab() {
-    if (_totalStudied == 0) {
-      return _buildEmptyState();
+  Widget _buildTodayTab(StatisticsProvider statsProvider) {
+    if (statsProvider.totalStudied == 0) {
+      return _buildEmptyState(statsProvider);
     }
 
     return SingleChildScrollView(
@@ -226,30 +158,30 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
             crossAxisSpacing: 16,
             mainAxisSpacing: 16,
             children: [
-              _buildStatCard('총 학습 단어', _totalStudied.toString(), Icons.book, Colors.blue),
-              _buildStatCard('정확도', '${_accuracy.toStringAsFixed(1)}%', Icons.check_circle, Colors.green),
-              _buildStatCard('알고 있음', _correctCount.toString(), Icons.thumb_up, Colors.teal),
-              _buildStatCard('모름', _incorrectCount.toString(), Icons.thumb_down, Colors.red),
+              _buildStatCard('총 학습 단어', statsProvider.totalStudied.toString(), Icons.book, Colors.blue),
+              _buildStatCard('정확도', '${statsProvider.accuracy.toStringAsFixed(1)}%', Icons.check_circle, Colors.green),
+              _buildStatCard('알고 있음', statsProvider.correctCount.toString(), Icons.thumb_up, Colors.teal),
+              _buildStatCard('모름', statsProvider.incorrectCount.toString(), Icons.thumb_down, Colors.red),
             ],
           ),
           const SizedBox(height: 32),
 
           // 단어별 통계
-          if (_mostIncorrectWords.isNotEmpty || _mostCorrectWords.isNotEmpty)
-            _buildWordStatistics(),
+          if (statsProvider.mostIncorrectWords.isNotEmpty || statsProvider.mostCorrectWords.isNotEmpty)
+            _buildWordStatistics(statsProvider),
         ],
       ),
     );
   }
 
   /// 주간 탭
-  Widget _buildWeeklyTab() {
-    return _buildChartTab(_weeklyStats, '주간', 7);
+  Widget _buildWeeklyTab(StatisticsProvider statsProvider) {
+    return _buildChartTab(statsProvider.weeklyStats, '주간', 7);
   }
 
   /// 월간 탭
-  Widget _buildMonthlyTab() {
-    return _buildChartTab(_monthlyStats, '월간', 30);
+  Widget _buildMonthlyTab(StatisticsProvider statsProvider) {
+    return _buildChartTab(statsProvider.monthlyStats, '월간', 30);
   }
 
   /// 차트 탭 위젯
@@ -474,12 +406,12 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
   }
 
   /// 단어별 통계 위젯
-  Widget _buildWordStatistics() {
+  Widget _buildWordStatistics(StatisticsProvider statsProvider) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 가장 많이 틀린 단어
-        if (_mostIncorrectWords.isNotEmpty) ...[
+        if (statsProvider.mostIncorrectWords.isNotEmpty) ...[
           const Text(
             '가장 많이 틀린 단어 TOP 5',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -490,10 +422,10 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
             child: ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: _mostIncorrectWords.length,
+              itemCount: statsProvider.mostIncorrectWords.length,
               separatorBuilder: (context, index) => const Divider(height: 1),
               itemBuilder: (context, index) {
-                final word = _mostIncorrectWords[index];
+                final word = statsProvider.mostIncorrectWords[index];
                 return ListTile(
                   leading: CircleAvatar(
                     backgroundColor: Colors.red,
@@ -529,7 +461,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
         ],
 
         // 가장 잘 아는 단어
-        if (_mostCorrectWords.isNotEmpty) ...[
+        if (statsProvider.mostCorrectWords.isNotEmpty) ...[
           const Text(
             '가장 잘 아는 단어 TOP 5',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -540,10 +472,10 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
             child: ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: _mostCorrectWords.length,
+              itemCount: statsProvider.mostCorrectWords.length,
               separatorBuilder: (context, index) => const Divider(height: 1),
               itemBuilder: (context, index) {
-                final word = _mostCorrectWords[index];
+                final word = statsProvider.mostCorrectWords[index];
                 final accuracy = word['accuracy'] as double;
                 return ListTile(
                   leading: CircleAvatar(
@@ -582,7 +514,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
   }
 
   /// 빈 상태 위젯 (학습 기록이 없을 때)
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(StatisticsProvider statsProvider) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
@@ -622,7 +554,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                   MaterialPageRoute(
                     builder: (context) => const FlashcardStudyScreen(),
                   ),
-                ).then((_) => _loadStatistics());
+                ).then((_) => statsProvider.loadStatistics());
               },
               icon: const Icon(Icons.school, size: 28),
               label: const Text(
